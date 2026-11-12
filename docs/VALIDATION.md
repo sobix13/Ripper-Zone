@@ -1,6 +1,6 @@
 # Validation record
 
-Release: 1.0.0. Date: 2026-11-12. Python: 3.12. Dependencies installed into a fresh isolated venv from the pinned versions.
+Release: 1.0.1. Date: 2026-11-12. Python: 3.12. Dependencies installed into a fresh isolated venv from the pinned versions.
 
 ## Automated coverage
 
@@ -27,7 +27,9 @@ The pytest suite exercises:
 | Upgrade failure | Fresh installation, successful upgrade, failed activation restores previous code and preserves a real 25 RC ledger |
 | Packaging | Explicit release allowlist, secret/runtime exclusion, symlink rejection, exact file hashes and atomic current/previous code switch |
 
-The installer simulation does not invoke the host's real systemctl, create host users or change /etc, /opt or /var/lib. It runs against temporary directories with recorded host-command substitutes. Pinned package installation was separately performed in the fresh venv.
+The installer simulation does not invoke the host's real systemctl, create host users or change /etc, /opt or /var/lib. It runs against temporary directories with recorded host-command substitutes. Its operator subprocess also simulates the service-user switch, retaining the fixture owner's UID/GID even when pytest runs as root. Actual SQLite backups, isolated-copy checks, release activation and rollback still run. The production privilege-drop function is unchanged and tested separately. Pinned package installation was separately performed in the fresh venv.
+
+Version 1.0.0 let the simulated operator call the host's real service-user switch. A root-run test on an installed VPS then failed while traversing pytest's private root directory, or failed account lookup on a clean root runner. Version 1.0.1 isolates that host-dependent effect inside the test shim. The full suite is configured to run as both the ordinary runner and root in GitHub Actions.
 
 ## Commands
 
@@ -35,7 +37,7 @@ The installer simulation does not invoke the host's real systemctl, create host 
 python -m pytest -q
 bash -n scripts/install.sh scripts/rollback.sh
 python -m compileall -q ripper_zone scripts main.py
-python scripts/build_release.py /tmp/ripper-zone-1.0.0.zip
+python scripts/build_release.py /tmp/ripper-zone-1.0.1.zip
 ```
 
 The delivery summary reports the final pytest count. Test parametrization represents distinct boundary cases; it is not a count of live Discord events.
