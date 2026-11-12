@@ -10,5 +10,7 @@ jobs:
           python-version: '3.12'
       - run: pip install -r requirements-lock.txt
       - run: python -m pytest -q
+      - name: Run the complete suite as root
+        run: sudo "$(command -v python)" -m pytest -q
       - run: bash -n scripts/install.sh scripts/rollback.sh
       - run: python -m compileall -q ripper_zone scripts main.py
