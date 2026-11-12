@@ -156,3 +156,18 @@ def test_shell_scripts_parse_and_preflight_initializes_isolated_db(tmp_path):
     result=subprocess.run([sys.executable,'scripts/preflight.py','--database',str(path)],cwd=ROOT,text=True,capture_output=True)
     assert result.returncode==0,result.stderr
     assert 'consistency: OK' in result.stdout
+
+
+@pytest.mark.parametrize('uid',[0,1000])
+def test_local_maintenance_drops_root_before_opening_private_sqlite(monkeypatch,uid):
+    from types import SimpleNamespace
+    spec=importlib.util.spec_from_file_location('rzctl_check',ROOT/'scripts/rzctl.py')
+    ctl=importlib.util.module_from_spec(spec);spec.loader.exec_module(ctl)
+    calls=[]
+    monkeypatch.setattr(ctl.os,'geteuid',lambda:uid)
+    monkeypatch.setattr(ctl.pwd,'getpwnam',lambda name:SimpleNamespace(pw_name=name,pw_gid=5678,pw_uid=5678))
+    monkeypatch.setattr(ctl.os,'initgroups',lambda name,gid:calls.append(('groups',name,gid)))
+    monkeypatch.setattr(ctl.os,'setgid',lambda gid:calls.append(('gid',gid)))
+    monkeypatch.setattr(ctl.os,'setuid',lambda uid:calls.append(('uid',uid)))
+    ctl.drop_service_user()
+    assert calls==([('groups','ripperzone',5678),('gid',5678),('uid',5678)] if uid==0 else [])
