@@ -1,0 +1,33 @@
+[Unit]
+Description=Ripper Zone community rewards
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=900
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=ripperzone
+Group=ripperzone
+SupplementaryGroups=ripcars-bots
+WorkingDirectory=/opt/ripper-zone/current
+EnvironmentFile=/etc/ripper-zone.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/ripper-zone/current/.venv/bin/python /opt/ripper-zone/current/main.py
+Restart=on-failure
+RestartPreventExitStatus=78
+RestartSec=30
+TimeoutStopSec=45
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/ripper-zone /var/lib/ripcars-bots
+ReadOnlyPaths=/var/lib/ripper-zone/recovery
+RestrictSUIDSGID=true
+LockPersonality=true
+CapabilityBoundingSet=
+
+[Install]
+WantedBy=multi-user.target
