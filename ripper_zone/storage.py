@@ -6,7 +6,7 @@ import sqlite3
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from .config import canonical, clean, digest, ident, integer, settings
+from .config import canonical, clean, digest, ident, integer, settings, LEGACY_KEYS
 from .features import Features
 from .raffles import Raffles
 
@@ -114,26 +114,65 @@ class Database(Features, Raffles):
     @staticmethod
     def _config(c, guild):
         row = c.execute("SELECT data,revision FROM settings WHERE guild=?", (guild,)).fetchone()
-        return (settings(json.loads(row[0])), row[1]) if row else (settings(), 0)
+        data=json.loads(row[0]) if row else {}
+        extra=c.execute('SELECT value FROM meta_flags WHERE key=?',(f'settings_extra:{guild}',)).fetchone()
+        if extra:data.update(json.loads(extra[0]))
+        return settings(data),row[1] if row else 0
+
+    @staticmethod
+    def _put_config(c,guild,data,revision):
+        # Keep the v1 settings row readable by the previous release during rollback.
+        legacy={k:v for k,v in data.items() if k in LEGACY_KEYS}
+        extra={k:v for k,v in data.items() if k not in LEGACY_KEYS}
+        c.execute('INSERT INTO settings VALUES(?,?,?) ON CONFLICT(guild) DO UPDATE SET data=excluded.data,revision=excluded.revision',(guild,canonical(legacy),revision))
+        c.execute('INSERT OR REPLACE INTO meta_flags VALUES(?,?)',(f'settings_extra:{guild}',canonical(extra)))
 
     async def config(self, guild):
         return await self.run(lambda c: self._config(c, ident(guild)))
 
+    def _save_history(self,c,guild,actor,data):
+        legacy={k:v for k,v in data.items() if k in LEGACY_KEYS}
+        extra={k:v for k,v in data.items() if k not in LEGACY_KEYS}
+        hid=c.execute('INSERT INTO settings_history(guild,actor,data,at) VALUES(?,?,?,?)',(guild,actor,canonical(legacy),int(self.clock()))).lastrowid
+        c.execute('INSERT INTO meta_flags VALUES(?,?)',(f'settings_history_extra:{hid}',canonical(extra)))
+        stale=[r[0] for r in c.execute('SELECT id FROM settings_history WHERE guild=? ORDER BY id DESC LIMIT -1 OFFSET 30',(guild,))]
+        for old in stale:
+            c.execute('DELETE FROM settings_history WHERE id=?',(old,))
+            c.execute('DELETE FROM meta_flags WHERE key=?',(f'settings_history_extra:{old}',))
+
+    async def config_history(self,guild):
+        def read(c):
+            rows=[dict(r) for r in c.execute('SELECT * FROM settings_history WHERE guild=? ORDER BY id DESC LIMIT 30',(guild,))]
+            for row in rows:
+                extra=c.execute('SELECT value FROM meta_flags WHERE key=?',(f'settings_history_extra:{row["id"]}',)).fetchone()
+                if extra:row['data']=canonical({**json.loads(row['data']),**json.loads(extra[0])})
+            return rows
+        return await self.run(read)
+
     async def save_config(self, guild, data, expected, actor):
-        guild, actor = ident(guild), ident(actor)
+        guild = ident(guild)
+        actor = 0 if type(actor) is int and actor == 0 else ident(actor)
         data = settings(data)
         def save(c):
             old, revision = self._config(c, guild)
             if expected != revision:
                 raise Conflict("Settings changed. Reopen the setup page.")
-            c.execute("INSERT INTO settings_history(guild,actor,data,at) VALUES(?,?,?,?)", (guild, actor, canonical(old), int(self.clock())))
-            c.execute("DELETE FROM settings_history WHERE guild=? AND id NOT IN (SELECT id FROM settings_history WHERE guild=? ORDER BY id DESC LIMIT 30)", (guild,guild))
-            c.execute("INSERT INTO settings VALUES(?,?,?) ON CONFLICT(guild) DO UPDATE SET data=excluded.data,revision=excluded.revision",
-                      (guild, canonical(data), revision+1))
+            self._save_history(c,guild,actor,old)
+            self._put_config(c,guild,data,revision+1)
             for tier in data["tiers"]:
                 c.execute("INSERT OR IGNORE INTO owned_roles VALUES(?,?)", (guild, tier["role"]))
-            for row in c.execute("SELECT user FROM accounts WHERE guild=?", (guild,)):
-                self._enqueue(c, f"role:{guild}:{row[0]}", "role", guild, {"user":row[0]})
+            if any(old[k]!=data[k] for k in ('tiers','roles_enabled','member_role','manager_roles','spin_role')):
+                for row in c.execute("SELECT user FROM accounts WHERE guild=?", (guild,)):
+                    self._enqueue(c, f"role:{guild}:{row[0]}", "role", guild, {"user":row[0]})
+            if any(old[k]!=data[k] for k in ('panel_title','welcome_text')):
+                self._enqueue(c,f"panel:{guild}",'panel_refresh',guild,{})
+            if old['messages']!=data['messages']:
+                self._enqueue(c,f'leaderboard:{guild}','leaderboard_refresh',guild,{})
+                for row in c.execute('SELECT id FROM raffles WHERE guild=? AND message IS NOT NULL',(guild,)):
+                    self._enqueue(c,f'raffle-copy:{row[0]}','raffle_refresh',guild,{'raffle':row[0]})
+            if old['task_footer']!=data['task_footer'] or old['messages']['task_closed']!=data['messages']['task_closed']:
+                for row in c.execute("SELECT id FROM tasks WHERE guild=? AND thread IS NOT NULL",(guild,)):
+                    self._enqueue(c,f'tasksync:{row[0]}','task_sync',guild,{'task':row[0]})
             self._audit(c,guild,actor,"settings",f"revision {revision+1}")
             return revision+1
         return await self.run(save)
@@ -198,7 +237,7 @@ class Database(Features, Raffles):
         def get(c):
             c.execute("INSERT OR IGNORE INTO accounts(guild,user,name) VALUES(?,?,?)",(guild,user,name[:128]))
             row=dict(c.execute("SELECT * FROM accounts WHERE guild=? AND user=?",(guild,user)).fetchone())
-            row['rank']=1+c.execute("SELECT COUNT(*) FROM accounts WHERE guild=? AND earned>?",(guild,row['earned'])).fetchone()[0]
+            row['rank']=1+c.execute("SELECT COUNT(*) FROM accounts WHERE guild=? AND earned>?",(guild,row['earned'])).fetchone()[0] if row['earned']>0 else None
             row['tasks']=c.execute("SELECT COUNT(DISTINCT ref) FROM ledger WHERE guild=? AND user=? AND source='task' AND kind='base' AND de>0 AND NOT EXISTS(SELECT 1 FROM revocations r WHERE r.ledger=ledger.id)",(guild,user)).fetchone()[0]
             row['events']=c.execute("SELECT COUNT(DISTINCT source||':'||ref) FROM ledger WHERE guild=? AND user=? AND source IN ('rumble','raffle') AND de>0 AND NOT EXISTS(SELECT 1 FROM revocations r WHERE r.ledger=ledger.id)",(guild,user)).fetchone()[0]
             return row
@@ -259,9 +298,23 @@ class Database(Features, Raffles):
     async def history(self,guild,user,offset=0):
         return await self.query("SELECT * FROM ledger WHERE guild=? AND user=? ORDER BY id DESC LIMIT 10 OFFSET ?",(ident(guild),ident(user),max(0,offset)))
 
+    async def leaderboard(self,guild,user=0,since=0,offset=0):
+        guild=ident(guild);integer(offset,0,1000000)
+        def read(c):
+            if since:
+                sql="SELECT a.user,a.name,SUM(l.de) earned FROM ledger l JOIN accounts a USING(guild,user) WHERE l.guild=? AND l.at>=? GROUP BY a.user HAVING SUM(l.de)>0"
+                args=(guild,since)
+            else:
+                sql="SELECT user,name,earned FROM accounts WHERE guild=? AND earned>0";args=(guild,)
+            ranked=f"WITH scores AS ({sql}), ranked AS (SELECT *,RANK() OVER(ORDER BY earned DESC) rank,ROW_NUMBER() OVER(ORDER BY earned DESC,user) position FROM scores) "
+            rows=[dict(r) for r in c.execute(ranked+"SELECT * FROM ranked ORDER BY position LIMIT 10 OFFSET ?",(*args,offset))]
+            mine=c.execute(ranked+"SELECT * FROM ranked WHERE user=?",(*args,user)).fetchone()
+            total=c.execute(f"SELECT COUNT(*) FROM ({sql})",args).fetchone()[0]
+            return {'rows':rows,'mine':dict(mine) if mine else None,'total':total}
+        return await self.run(read)
+
     async def leaders(self,guild,since=0):
-        if not since:return await self.query("SELECT user,name,earned FROM accounts WHERE guild=? ORDER BY earned DESC,user LIMIT 10",(ident(guild),))
-        return await self.query("SELECT l.user,a.name,SUM(l.de) earned FROM ledger l JOIN accounts a ON a.guild=l.guild AND a.user=l.user WHERE l.guild=? AND l.at>=? GROUP BY l.user ORDER BY earned DESC,l.user LIMIT 10",(ident(guild),since))
+        return (await self.leaderboard(guild,since=since))['rows']
 
     async def reconcile(self,guild):
         def check(c):

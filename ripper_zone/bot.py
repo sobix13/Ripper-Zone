@@ -14,9 +14,10 @@ import discord
 from discord import app_commands
 from dotenv import load_dotenv
 from . import __version__, sources
-from .config import ident, integer, settings, emoji_key
+from .config import canonical,digest,ident, integer, settings, emoji_key
 from .coordination import Registry
 from .features import cycle
+from .copy import phrase
 from .storage import Database
 from .service import Service
 from . import ui
@@ -55,6 +56,7 @@ class RipperBot(discord.Client):
         self.registry=Registry(path,f"bot:{self.application_id}")
         await self.registry.open()
         self.add_view(ui.gateway(self))
+        self.add_view(ui.public_leaderboard(self,[]))
         rows=await self.db.query("SELECT id FROM raffles WHERE guild=? AND message IS NOT NULL",(self.guild_id,))
         for row in rows:self.add_view(ui.raffle_view(self,await self.db.raffle(self.guild_id,row['id'])))
         guild=discord.Object(id=self.guild_id)
@@ -95,7 +97,7 @@ class RipperBot(discord.Client):
         return member
 
     async def publish_panel_action(self,i):
-        await i.response.defer(ephemeral=True,thinking=True);await self.authorize(i,primary=True)
+        await ui.defer(i);await self.authorize(i,primary=True)
         cfg,rev=await self.db.config(i.guild_id)
         await self.service.validate_config(i.guild,cfg)
         channel=i.guild.get_channel(cfg['panel_channel'])
@@ -103,18 +105,18 @@ class RipperBot(discord.Client):
         if cfg['panel_message']:
             message=await channel.fetch_message(cfg['panel_message'])
             if message.author.id!=self.user.id:raise ValueError("Saved message belongs to another application.")
-            screen=ui.gateway(self)
+            screen=ui.gateway(self,cfg)
             await message.edit(view=screen,attachments=screen.files(),allowed_mentions=ui.MENTIONS)
             await ui.reply(i,content=f"Member panel refreshed: {message.jump_url}");return
         if cfg['panel_state'] not in ('new','missing'):raise ValueError("A previous send requires review. Use /ripper panel_recover with its message ID.")
         cfg['panel_state']='sending';await self.db.save_config(i.guild_id,cfg,rev,i.user.id)
-        screen=ui.gateway(self)
+        screen=ui.gateway(self,cfg)
         message=await channel.send(view=screen,files=screen.files(),allowed_mentions=ui.MENTIONS)
         # Save the returned ID even if another administrator edited settings meanwhile.
         def bind(c):
             current,v=self.db._config(c,i.guild_id)
             current.update(panel_message=message.id,panel_state='active')
-            c.execute("UPDATE settings SET data=?,revision=? WHERE guild=?",(json.dumps(current),v+1,i.guild_id))
+            self.db._put_config(c,i.guild_id,current,v+1)
         await self.db.run(bind)
         await self.registry.record(i.guild_id,message.id,'message','panel:'+str(message.id))
         await ui.reply(i,content=f"Member panel published: {message.jump_url}")
@@ -125,7 +127,7 @@ class RipperBot(discord.Client):
         channel=guild.get_channel(cfg['leaderboard_channel'])
         rows=await self.db.leaders(guild.id)
         text='\n'.join(f"{n}. <@{r['user']}> · **{r['earned']} RC**" for n,r in enumerate(rows,1)) or "Be the first to earn Ripper Credits."
-        screen=ui.Screen(self,'Ripper Zone · Community Leaderboard',text+"\n\nLifetime earned RC. Ticket spending does not reduce rankings.")
+        screen=ui.public_leaderboard(self,rows,cfg)
         if cfg['leaderboard_message']:
             msg=await channel.fetch_message(cfg['leaderboard_message'])
             if msg.author.id!=self.user.id:raise ValueError("Leaderboard message belongs to another application.")
@@ -139,14 +141,22 @@ class RipperBot(discord.Client):
             await self.registry.record(guild.id,msg.id,'message','leaderboard:'+str(msg.id))
 
     async def doctor_action(self,i):
-        await i.response.defer(ephemeral=True,thinking=True);await self.authorize(i)
+        await ui.defer(i);await self.authorize(i)
         from .operations import doctor
         data=await doctor(self)
         await ui.reply(i,content="Ripper Zone health report",file=discord.File(io.BytesIO(json.dumps(data,indent=2).encode()),filename='ripper-zone-health.json'))
 
     async def on_message(self,message):
-        if message.author.bot or not message.guild or message.guild.id!=self.guild_id or not isinstance(message.channel,discord.Thread):return
+        if message.author.bot or not message.guild or message.guild.id!=self.guild_id:return
         try:
+            cfg,_=await self.db.config(message.guild.id)
+            if message.channel.id==cfg['tasks_channel']:
+                member=await self.service.eligible(message.guild,message.author.id)
+                if member and (member.id in self.owners|set(cfg['primary_users'])|{message.guild.owner_id} or set(cfg['manager_roles'])&{r.id for r in member.roles}):return
+                await message.delete()
+                await message.channel.send('Please post inside the matching community task thread. Open Community Tasks in your panel.',delete_after=10,allowed_mentions=ui.MENTIONS)
+                return
+            if not isinstance(message.channel,discord.Thread):return
             task=await self.db.task_for_thread(message.guild.id,message.channel.id)
             if not task:return
             cfg,_=await self.db.config(message.guild.id)
@@ -156,34 +166,46 @@ class RipperBot(discord.Client):
             bypass=member.id in self.owners|set(cfg['primary_users'])|{message.guild.owner_id} or bool(set(cfg['manager_roles'])&{r.id for r in member.roles})
             at=int(message.created_at.timestamp())
             remaining=await self.db.accept_message(message.guild.id,task['id'],member.id,message.id,at,bypass)
+            if remaining==0:
+                try:await member.send(phrase(cfg,'task_received'))
+                except discord.Forbidden:pass
             if remaining>0:
                 await message.delete()
-                try:await member.send(f"Task #{task['id']} posting cooldown: wait {remaining} seconds before posting again.")
-                except discord.Forbidden:pass
+                try:await member.send(phrase(cfg,'cooldown',remaining=remaining))
+                except discord.Forbidden:
+                    await message.channel.send(phrase(cfg,'cooldown',remaining=remaining),delete_after=10,allowed_mentions=ui.MENTIONS)
         except Exception as exc:self.report_error(exc)
 
     async def on_raw_reaction_add(self,event):
         if event.guild_id!=self.guild_id or event.user_id==self.user.id:return
         try:
-            guild=self.get_guild(event.guild_id)
-            if not guild:return
-            task=await self.db.task_for_thread(guild.id,event.channel_id)
+            task=await self.db.task_for_thread(event.guild_id,event.channel_id)
             if not task:return
-            cfg,_=await self.db.config(guild.id)
-            actor=await self.service.eligible(guild,event.user_id)
-            if not actor or (actor.id not in self.owners|set(cfg['primary_users'])|{guild.owner_id} and not set(cfg['manager_roles'])&{r.id for r in actor.roles}):return
+            cfg,_=await self.db.config(event.guild_id)
+            if not cfg['reactions_enabled']:return
             rule={emoji_key(k):v for k,v in cfg['reactions'].items()}.get(emoji_key(event.emoji))
             if not rule:return
-            channel=guild.get_thread(event.channel_id) or await self.fetch_channel(event.channel_id)
-            message=await channel.fetch_message(event.message_id)
-            if message.author.bot or message.id==channel.id:return
-            recipient=await self.service.eligible(guild,message.author.id,cfg['member_role'])
-            if recipient is None:return
-            accepted=await self.db.query("SELECT cycle FROM task_messages WHERE task=? AND message=? AND user=?",(task['id'],message.id,recipient.id))
-            if not accepted:raise ValueError("This post was not recorded while the bot was online. Review it using /ripper task_reward with the intended cycle.")
-            await self.db.task_award(guild.id,task['id'],{recipient.id:recipient.display_name},accepted[0]['cycle'],actor.id,f"reaction:{message.id}:{emoji_key(event.emoji)}",rule['kind'],rule['amount'])
+            payload=dict(guild_id=event.guild_id,channel_id=event.channel_id,message_id=event.message_id,user_id=event.user_id,emoji=emoji_key(event.emoji),rule=rule)
+            await self.db.execute('INSERT OR IGNORE INTO jobs(key,kind,guild,payload) VALUES(?,?,?,?)',(f'reaction:{event.guild_id}:{event.message_id}:{event.user_id}:{emoji_key(event.emoji)}','reaction',event.guild_id,canonical(payload)))
         except Exception as exc:self.report_error(exc)
 
+    async def process_reaction(self,event,rule):
+        guild=self.get_guild(event.guild_id)
+        if not guild:raise ValueError('Server unavailable.')
+        task=await self.db.task_for_thread(guild.id,event.channel_id)
+        if not task:return
+        cfg,_=await self.db.config(guild.id)
+        actor=await self.service.eligible(guild,event.user_id)
+        if not actor or (actor.id not in self.owners|set(cfg['primary_users'])|{guild.owner_id} and not set(cfg['manager_roles'])&{r.id for r in actor.roles}):return
+        channel=guild.get_thread(event.channel_id) or await self.fetch_channel(event.channel_id)
+        message=await channel.fetch_message(event.message_id)
+        if message.author.bot or message.id==channel.id:return
+        recipient=await self.service.eligible(guild,message.author.id,cfg['member_role'])
+        if recipient is None:return
+        if actor.id==recipient.id:raise ValueError('Another moderator must review your own contribution.')
+        accepted=await self.db.query("SELECT cycle FROM task_messages WHERE task=? AND message=? AND user=?",(task['id'],message.id,recipient.id))
+        if not accepted:raise ValueError("This post was not recorded while the bot was online. Review it using /ripper task_reward with the intended cycle.")
+        await self.db.task_award(guild.id,task['id'],{recipient.id:recipient.display_name},accepted[0]['cycle'],actor.id,f"reaction:{message.id}:{emoji_key(event.emoji)}",rule['kind'],rule['amount'])
     async def on_member_join(self,member):
         if member.guild.id==self.guild_id:await self.db.enqueue(f"role:{member.guild.id}:{member.id}",'role',member.guild.id,{'user':member.id})
 
@@ -195,6 +217,11 @@ class RipperBot(discord.Client):
 def commands(bot):
     group=app_commands.Group(name='ripper',description='Ripper Zone community program',guild_only=True)
     bot.tree.add_command(group)
+
+    async def message_award(i:discord.Interaction,message:discord.Message):
+        from .admin_ui import message_award_form
+        await message_award_form(bot,i,message)
+    bot.tree.add_command(app_commands.ContextMenu(name='Award RC',callback=message_award))
 
     @group.command(description='Open your private Ripper Zone panel')
     async def panel(i:discord.Interaction):await ui.member_page(bot,i)
@@ -210,7 +237,7 @@ def commands(bot):
 
     @group.command(description='Preview and pay participation RC from an event export')
     async def snapshot(i:discord.Interaction,event_file:discord.Attachment,amount:int):
-        await i.response.defer(ephemeral=True,thinking=True);await bot.authorize(i)
+        await ui.defer(i);await bot.authorize(i)
         integer(amount,1,1000)
         if event_file.size>200000:raise ValueError("Event export exceeds 200 KB.")
         data=sources.validate(json.loads(await event_file.read()),i.guild_id)
@@ -223,7 +250,7 @@ def commands(bot):
 
     @group.command(description='Award accepted task contributors once per task cycle')
     async def task_snapshot(i:discord.Interaction,task_id:int,cycle_id:int,kind:Literal['base','quality']='base',quality_amount:int=5):
-        await i.response.defer(ephemeral=True,thinking=True);await bot.authorize(i)
+        await ui.defer(i);await bot.authorize(i)
         task=await bot.db.task(i.guild_id,task_id)
         rows=await bot.db.query("SELECT DISTINCT user FROM task_messages WHERE task=? AND cycle=?",(task_id,cycle_id))
         cfg,_=await bot.db.config(i.guild_id);people={}
@@ -240,7 +267,7 @@ def commands(bot):
 
     @group.command(description='Manage task lifecycle, cooldowns or recover a created thread')
     async def task_manage(i:discord.Interaction,action:Literal['list','close','archive','cooldown','reset_cooldown','bind_thread','resend_brief'],task_id:int=0,value:int=0):
-        await i.response.defer(ephemeral=True,thinking=True);await bot.authorize(i)
+        await ui.defer(i);await bot.authorize(i)
         if action=='list':
             rows=await bot.db.query("SELECT * FROM tasks WHERE guild=? ORDER BY id DESC LIMIT 30",(i.guild_id,))
             return await ui.reply(i,content='\n'.join(f"#{t['id']} {ui.escape(t['title'])} · {t['status']} · current cycle {cycle(t,int(time.time()))}" for t in rows)[:1900] or "No tasks.")
@@ -255,12 +282,12 @@ def commands(bot):
             await bot.db.execute("UPDATE tasks SET thread=?,status='active' WHERE guild=? AND id=?",(value,i.guild_id,task_id))
             await bot.db.enqueue(f"taskbrief-recovered:{task_id}",'notice',i.guild_id,{'channel':value,'text':f"Task #{task_id}: {task['title']}\n{task['body']}\nBase reward: {task['reward']} RC"})
         elif action in ('close','archive'):
-            await bot.db.execute("UPDATE tasks SET status='closed' WHERE guild=? AND id=?",(i.guild_id,task_id))
+            await bot.db.close_task(i.guild_id,task_id,i.user.id)
             if task['thread']:
                 thread=i.guild.get_thread(task['thread']) or await bot.fetch_channel(task['thread'])
                 await thread.edit(locked=True,archived=action=='archive',reason="Ripper Zone task closed")
         elif action=='cooldown':
-            integer(value,0,604800);await bot.db.execute("UPDATE tasks SET cooldown=? WHERE guild=? AND id=?",(value,i.guild_id,task_id))
+            integer(value,0,604800);await bot.db.edit_task(i.guild_id,task_id,{'cooldown':value},i.user.id,digest(task))
         elif action=='reset_cooldown':
             if value:await bot.db.execute("DELETE FROM cooldowns WHERE task=? AND user=?",(task_id,ident(value)))
             else:await bot.db.execute("DELETE FROM cooldowns WHERE task=?",(task_id,))
@@ -272,17 +299,18 @@ def commands(bot):
 
     @group.command(description='Record a reviewed task contribution, including posts made during downtime')
     async def task_reward(i:discord.Interaction,task_id:int,cycle_id:int,member:discord.Member,kind:Literal['base','quality']='base',quality_amount:int=5,reason:str='Reviewed task contribution'):
-        await i.response.defer(ephemeral=True,thinking=True);await bot.authorize(i)
+        await ui.defer(i);await bot.authorize(i)
         cfg,_=await bot.db.config(i.guild_id)
         recipient=await bot.service.eligible(i.guild,member.id,cfg['member_role'])
         if not recipient:raise ValueError("The member does not meet community access requirements.")
+        if recipient.id==i.user.id:raise ValueError("Another moderator must review your own task contribution.")
         count=await bot.db.task_award(i.guild_id,task_id,{member.id:recipient.display_name},cycle_id,i.user.id,str(i.id),kind,quality_amount)
         await bot.db.audit(i.guild_id,i.user.id,'manual_task_review',f"{task_id}:{cycle_id}:{member.id}:{kind}:{reason[:300]}")
         await ui.reply(i,content=f"{count} reviewed task rewards issued. An existing base reward for this cycle is not paid again.")
 
     @group.command(description='Operate RC raffles, prizes and publication recovery')
     async def raffle_manage(i:discord.Interaction,action:Literal['list','publish','close','cancel','delivered','forfeit','replace','bind_message','refresh'],raffle_id:int=0,member:Optional[discord.Member]=None,message_id:str='',reason:str='Administrator operation'):
-        await i.response.defer(ephemeral=True,thinking=True);await bot.authorize(i)
+        await ui.defer(i);await bot.authorize(i)
         if action=='list':
             rows=await bot.db.query("SELECT id,status,error FROM raffles WHERE guild=? ORDER BY id DESC LIMIT 25",(i.guild_id,))
             return await ui.reply(i,content='\n'.join(f"#{r['id']} {r['status']} {ui.escape(r['error'])}" for r in rows)[:1900] or "No RC raffles.")
@@ -306,19 +334,19 @@ def commands(bot):
 
     @group.command(description='Primary administrator ledger correction with a recorded reason')
     async def correction(i:discord.Interaction,member:discord.Member,amount:int,reason:str):
-        await i.response.defer(ephemeral=True,thinking=True);await bot.authorize(i,primary=True)
+        await ui.defer(i);await bot.authorize(i,primary=True)
         integer(amount,-100000,100000)
         if not amount:raise ValueError("Amount must not be zero.")
         async def confirm(j):
             await j.response.defer(ephemeral=True,thinking=True);await bot.authorize(j,primary=True)
             await bot.db.adjust(j.guild_id,member.id,amount,j.user.id,reason,str(i.id))
             await ui.reply(j,content="Correction recorded in the append-only RC ledger.")
-        screen=ui.Screen(bot,'Confirm Ledger Correction',f"Member: {member.mention}\nAvailable and earned RC correction: {amount:+}\nReason: {ui.escape(reason)}\nA negative balance blocks new ticket purchases until covered by future earnings.",owner=i.user.id)
+        screen=ui.Screen(bot,'Confirm Ledger Correction',f"Member: <@{member.id}>\nAvailable and earned RC correction: {amount:+}\nReason: {ui.escape(reason)}\nA negative balance blocks new ticket purchases until covered by future earnings.",owner=i.user.id)
         screen.button('Record Correction',confirm,discord.ButtonStyle.danger);await ui.show(i,screen)
 
     @group.command(description='Export current settings without runtime message bindings')
     async def settings_export(i:discord.Interaction):
-        await i.response.defer(ephemeral=True,thinking=True);await bot.authorize(i,primary=True)
+        await ui.defer(i);await bot.authorize(i,primary=True)
         cfg,_=await bot.db.config(i.guild_id)
         for k in ('panel_message','leaderboard_message'):cfg[k]=0
         cfg['panel_state']='new'
@@ -326,7 +354,7 @@ def commands(bot):
 
     @group.command(description='Revoke one invalid contribution reward and its achievement metric')
     async def revoke_reward(i:discord.Interaction,ledger_id:int,reason:str):
-        await i.response.defer(ephemeral=True,thinking=True);await bot.authorize(i,primary=True)
+        await ui.defer(i);await bot.authorize(i,primary=True)
         rows=await bot.db.query("SELECT * FROM ledger WHERE guild=? AND id=?",(i.guild_id,ledger_id))
         if not rows:raise ValueError("Ledger record not found.")
         row=rows[0]
@@ -339,7 +367,7 @@ def commands(bot):
 
     @group.command(description='Preview validated settings before importing')
     async def settings_import(i:discord.Interaction,attachment:discord.Attachment):
-        await i.response.defer(ephemeral=True,thinking=True);await bot.authorize(i,primary=True)
+        await ui.defer(i);await bot.authorize(i,primary=True)
         if attachment.size>50000:raise ValueError("Settings file exceeds 50 KB.")
         proposed=settings(json.loads(await attachment.read()));current,rev=await bot.db.config(i.guild_id)
         for k in ('panel_message','leaderboard_message','panel_state'):proposed[k]=current[k]
@@ -354,8 +382,8 @@ def commands(bot):
 
     @group.command(description='List saved settings history or preview a previous revision')
     async def settings_history(i:discord.Interaction,history_id:int=0):
-        await i.response.defer(ephemeral=True,thinking=True);await bot.authorize(i,primary=True)
-        rows=await bot.db.query("SELECT * FROM settings_history WHERE guild=? ORDER BY id DESC LIMIT 30",(i.guild_id,))
+        await ui.defer(i);await bot.authorize(i,primary=True)
+        rows=await bot.db.config_history(i.guild_id)
         if not history_id:return await ui.reply(i,content='\n'.join(f"#{r['id']} <t:{r['at']}:F> by <@{r['actor']}>" for r in rows) or "No previous settings.")
         chosen=next((r for r in rows if r['id']==history_id),None)
         if not chosen:raise ValueError("History entry not found.")
@@ -364,12 +392,12 @@ def commands(bot):
         async def restore(j):
             await j.response.defer(ephemeral=True,thinking=True);await bot.authorize(j,primary=True)
             await bot.service.configure(j.guild,old,rev,j.user.id);await ui.reply(j,content="Previous settings restored after validation.")
-        screen=ui.Screen(bot,'Restore Settings',f"History entry #{history_id}. All current channel permissions and roles will be validated.",owner=i.user.id)
+        screen=ui.Screen(bot,'Restore Settings',f"History entry #{history_id}. Current permissions and roles will be validated.\nChanged fields: "+', '.join(k for k in old if old[k]!=cfg[k]),owner=i.user.id)
         screen.button('Restore This Configuration',restore,discord.ButtonStyle.danger);await ui.show(i,screen)
 
     @group.command(description='Export leaderboard or complete RC transaction CSV')
     async def report(i:discord.Interaction,kind:Literal['leaderboard','ledger','tasks','raffles','audit']):
-        await i.response.defer(ephemeral=True,thinking=True);await bot.authorize(i)
+        await ui.defer(i);await bot.authorize(i)
         sql={'leaderboard':"SELECT * FROM accounts WHERE guild=? ORDER BY earned DESC,user",'ledger':"SELECT * FROM ledger WHERE guild=? ORDER BY id",'tasks':"SELECT * FROM tasks WHERE guild=? ORDER BY id",'raffles':"SELECT id,guild,actor,channel,message,status,spec,created,error FROM raffles WHERE guild=? ORDER BY id",'audit':"SELECT * FROM audit WHERE guild=? ORDER BY id"}[kind]
         rows=await bot.db.query(sql,(i.guild_id,));buffer=io.StringIO();writer=csv.writer(buffer)
         if rows:
@@ -383,7 +411,7 @@ def commands(bot):
 
     @group.command(description='Configure primary user IDs, moderator roles or daily-spin role')
     async def access(i:discord.Interaction,field:Literal['primary_users','manager_roles','spin_role'],ids:str):
-        await i.response.defer(ephemeral=True,thinking=True);await bot.authorize(i,primary=True)
+        await ui.defer(i);await bot.authorize(i,primary=True)
         cfg,rev=await bot.db.config(i.guild_id);values=[ident(x.strip()) for x in ids.split(',') if x.strip() and x.strip()!='0']
         if field=='spin_role':
             if len(values)>1:raise ValueError("Select one role or 0 to disable the extra requirement.")
@@ -393,7 +421,7 @@ def commands(bot):
 
     @group.command(description='Configure a moderator reward reaction')
     async def reactions(i:discord.Interaction,emoji:str,kind:Literal['base','quality','remove'],amount:int=5):
-        await i.response.defer(ephemeral=True,thinking=True);await bot.authorize(i,primary=True)
+        await ui.defer(i);await bot.authorize(i,primary=True)
         cfg,rev=await bot.db.config(i.guild_id);key=emoji_key(emoji)
         cfg['reactions']={emoji_key(k):v for k,v in cfg['reactions'].items()}
         if kind=='remove':cfg['reactions'].pop(key,None)
@@ -402,7 +430,7 @@ def commands(bot):
 
     @group.command(description='Recover a known panel or leaderboard message without creating duplicates')
     async def panel_recover(i:discord.Interaction,kind:Literal['panel','leaderboard'],message_id:str):
-        await i.response.defer(ephemeral=True,thinking=True);await bot.authorize(i,primary=True)
+        await ui.defer(i);await bot.authorize(i,primary=True)
         cfg,rev=await bot.db.config(i.guild_id);mid=ident(message_id);channel=i.guild.get_channel(cfg[kind+'_channel'])
         msg=await channel.fetch_message(mid)
         if msg.author.id!=bot.user.id:raise ValueError("Use this application's own message.")
@@ -411,18 +439,19 @@ def commands(bot):
         cfg[kind+'_message']=mid
         if kind=='panel':cfg['panel_state']='active'
         await bot.db.save_config(i.guild_id,cfg,rev,i.user.id)
+        await bot.service.finish_move(i.guild,kind,mid)
         if kind=='leaderboard':await bot.db.execute("DELETE FROM meta_flags WHERE key='leaderboard_sending'")
         await ui.reply(i,content="Saved message binding recovered.")
 
     @group.command(description='Publish or refresh the public leaderboard')
     async def leaderboard_publish(i:discord.Interaction):
-        await i.response.defer(ephemeral=True,thinking=True);await bot.authorize(i,primary=True)
+        await ui.defer(i);await bot.authorize(i,primary=True)
         if await bot.db.query("SELECT 1 FROM meta_flags WHERE key='leaderboard_sending'"):raise ValueError("A previous send requires message-ID recovery.")
         await bot.refresh_leaderboard(i.guild,publish=True);await ui.reply(i,content="Public leaderboard published or refreshed.")
 
     @group.command(description='Primary recovery tools, backed by consistency checks')
     async def recovery(i:discord.Interaction,action:Literal['retry_jobs','clear_accounting_pause','restart','mark_panel_missing']):
-        await i.response.defer(ephemeral=True,thinking=True);await bot.authorize(i,primary=True)
+        await ui.defer(i);await bot.authorize(i,primary=True)
         if action=='retry_jobs':await bot.db.execute("UPDATE jobs SET state='pending',attempts=0,next_at=0 WHERE guild=? AND state='failed'",(i.guild_id,))
         elif action=='clear_accounting_pause':await bot.db.clear_financial_block(i.guild_id,i.user.id)
         elif action=='mark_panel_missing':

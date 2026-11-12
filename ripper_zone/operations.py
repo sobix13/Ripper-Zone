@@ -184,6 +184,14 @@ class Recovery:
                     self.budget.data['last_error']=str(exc)[:300];self.budget.save()
             await asyncio.sleep(20)
 
+    async def source_response(self,request):
+        if not authorized(request,self.secret):raise web.HTTPUnauthorized()
+        from .sources import local_event
+        try:
+            data=await asyncio.to_thread(local_event,request.query.get('source',''),self.guild,request.query.get('event'))
+            return web.json_response(data)
+        except (ValueError,OSError,sqlite3.Error):return web.json_response({'error':'Event source unavailable or incompatible. Check its VPS installation and source database path.'},status=400)
+
     async def serve(self):
         async def health(request):
             if not authorized(request,self.secret):raise web.HTTPUnauthorized()
@@ -198,7 +206,7 @@ class Recovery:
             asyncio.create_task(delayed())
             return web.json_response({'accepted':True})
         app=web.Application(client_max_size=1024)
-        app.router.add_get('/health',health);app.router.add_post('/restart',restart)
+        app.router.add_get('/health',health);app.router.add_post('/restart',restart);app.router.add_get('/events',self.source_response)
         runner=web.AppRunner(app,access_log=None);await runner.setup()
         await web.TCPSite(runner,'127.0.0.1',int(os.environ.get('RECOVERY_PORT','3041'))).start()
         async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10)) as session:

@@ -172,7 +172,7 @@ async def test_announcement_failure_does_not_change_saved_winners(db,spec):
     await db.freeze_raffle(1,rid,early=True)
     r=await db.finalize_raffle(1,rid,[{'user':3,'eligible':True},{'user':4,'eligible':True}])
     channel=NS(fetch_message=AsyncMock(side_effect=asyncio.TimeoutError()))
-    guild=NS(get_channel=lambda _:channel)
+    guild=NS(id=1,get_channel=lambda _:channel)
     with pytest.raises(asyncio.TimeoutError):await b.service.update_raffle(guild,r)
     assert (await db.raffle(1,rid))['rounds']==r['rounds']
     assert (await db.raffle(1,rid))['announcement_state']=='pending'
@@ -242,7 +242,11 @@ def simulated_guild(bot_id=99):
         channel.send=AsyncMock(return_value=NS(id=700+cid,jump_url=f'https://discord.com/channels/1/{cid}/{700+cid}'))
         channels[cid]=channel
     thread=MagicMock(spec=discord.Thread);thread.id=555;thread.guild=guild;thread.parent_id=12;thread.owner_id=99;thread.mention='<#555>'
-    thread.send=AsyncMock();thread.edit=AsyncMock()
+    thread.send=AsyncMock(return_value=NS(id=900));thread.edit=AsyncMock()
+    async def empty_history(**kwargs):
+        for item in ():yield item
+    thread.history=empty_history
+    thread.archived=False
     channels[12].create_thread=AsyncMock(return_value=thread)
     guild.get_channel=lambda cid:channels.get(cid)
     guild.get_thread=lambda cid:thread if cid==555 else None
@@ -277,14 +281,18 @@ async def test_task_form_publishes_real_layout_and_durable_thread_brief(db,tmp_p
     b=fake_bot(db);b.user=NS(id=99);guild,roles,channels,thread=simulated_guild()
     b.registry=Registry(tmp_path/'registry.db','bot:99');await b.registry.open()
     initial=interaction(2);initial.guild=guild
-    await ui.task_form(b,initial);modal=initial.response.modal
-    for key,value in {'title':'Collector Story','body':'Share a photo and a story','reward':'5','timing':'daily, 60, 24'}.items():modal.inputs[key]._value=value
+    await ui.task_form(b,initial)
+    page=initial.followup.send.call_args.kwargs['view']
+    pick=next(x for x in page.walk_children() if isinstance(x,discord.ui.Button) and x.label=='Daily')
+    chosen=interaction(2);chosen.guild=guild;await pick.callback(chosen);modal=chosen.response.modal
+    for key,value in {'title':'Collector Story','body':'Share a photo and a story','reward':'5','cooldown':'60','hours':'24'}.items():modal.inputs[key]._value=value
     i=interaction(2);i.guild=guild;await modal.on_submit(i)
     task=(await db.query('SELECT * FROM tasks'))[0]
     assert task['status']=='active' and task['thread']==555 and task['period']==86400
     job=await db.claim_job();b.get_guild=lambda _:guild
     await b.service.job(job);await db.finish_job(job)
-    assert thread.send.call_args.args[0].startswith('Task #1: Collector Story')
+    assert 'Collector Story' in thread.send.call_args.kwargs['view'].box.children[0].children[0].content
+    payload(thread.send.call_args.kwargs['view'])
 
 
 async def test_role_add_failure_keeps_old_tier_and_retry_uses_same_earnings(db,tmp_path):
@@ -318,5 +326,7 @@ async def test_real_reaction_handler_deduplicates_two_moderators_and_snapshot(db
     guild.fetch_member=fetch
     for uid in (2,4):
         await b.on_raw_reaction_add(NS(guild_id=1,channel_id=555,message_id=201,user_id=uid,emoji='✅'))
+    for job in await db.query("SELECT * FROM jobs WHERE kind='reaction'"):
+        job['payload']=json.loads(job['payload']);await b.service.job(job)
     assert (await db.account(1,3))['earned']==5
     assert await db.task_award(1,tid,{3:'Alice'},0,2,'snapshot')==0

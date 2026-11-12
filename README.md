@@ -1,32 +1,109 @@
 # Ripper Zone
 
-Rip Cars community participation bot. Currency: Ripper Credits, displayed as RC.
+Rip Cars community participation, powered by Ripper Credits (RC). Release 1.1.0.
 
-Python 3.12+, discord.py 2.7.1, private SQLite ledger and systemd. This is an independent application, token, service and database. It does not reuse Melee balances or replace Gate, Crew, Rumble or the ordinary Raffle bot.
+One account combines community tasks, finalized Rumble/ordinary-raffle participation, moderator awards and a free daily spin. Available RC buy public raffle tickets. Spending does not reduce lifetime earned RC, rank or achievement progress.
 
-## Features
+Quiz, content submission forms and peer review are excluded. Gate and Crew keep verification and support tickets. This application has its own token, service user, SQLite ledger and independent recovery helper.
 
-| Area | Behavior |
+## Upgrade an existing installation
+
+```bash
+cd ~/Ripper-Zone
+git pull --ff-only
+sudo bash scripts/install.sh
+```
+
+Existing credentials, settings and RC remain in place. Open the public member panel or `/ripper admin` after the upgrade. Existing member-panel buttons work after restart. In Settings, refresh the public panel and leaderboard. Use Messages and Branding to edit copy, and Channels and Access to select the existing Crew ticket channel.
+
+## Daily operation through the panels
+
+| Member | Moderator / primary administrator |
 | --- | --- |
-| Member panel | Private balance, daily spin, community tasks, RC raffles, leaderboard, history and help |
-| Community Tasks | One public thread per task, member posts, moderator reward reactions, reviewed manual awards and cycle snapshots |
-| Event participation | Import the finalized Rumble roster or ordinary-raffle initial eligible pool, including losers |
-| RC accounting | Available, reserved and earned balances; atomic ledger; explicit corrections and reward revocation |
-| Daily Spin | One free claim per member per UTC day; ten outcomes; exact mean 5 RC |
-| RC raffles | Public ticket purchase, private cost confirmation, atomic reservations, weighted draws, refunds and prize handling |
-| Achievement roles | Exactly three optional tiers; setup skip; earned RC, task and event metrics; highest eligible role |
-| Operations | Setup wizard, access control, CSV reports, settings history, doctor, verified backups and independent bounded recovery |
-| Branding | Original Rumble artwork in native Discord Components V2 panels |
+| Home, My RC, Daily Spin | Dashboard and current status |
+| Select active or past task; open its thread | Create, inspect, edit, duplicate, close and archive tasks |
+| Recorded posts and base reward status | Participants, reviewed contributions, extra quality RC, cycle snapshots, cooldown reset and reaction recovery |
+| Public / private leaderboard, personal rank and pagination | Publish, refresh or move the public leaderboard |
+| All Time, Today, Monday-based This Week, This Month | Reaction editor: add, edit, remove, enable / pause |
+| Raffle details, ticket confirmation and receipts | Draft editor, publish, close, cancel/refund and message recovery |
+| My Prizes, claim and support instructions | Prize delivery, forfeiture, replacement and draw proof |
+| Activity, progress and RC history | Native member selection, account history, corrections and reward reversal |
+| Member guide and About | Editable messages, channels, access, three-role wizard and program controls |
+| Existing Crew support channel | CSV reports, settings history/import/export, health, backups and bounded recovery |
 
-Quiz, content submission forms and peer review are excluded from this version.
+Ordinary workflows are buttons, selectors and forms. Slash commands remain shortcuts. The Discord message menu also has **Award RC** for a reviewed extra manual contribution.
 
-## Install on the VPS
+Primary administrators are OWNER_IDS, the server owner and configured primary users. Configured moderator roles handle routine operations. Permissions are fetched again for mutations. Private panels belong to their opener and expire after ten minutes.
 
-Create a separate Discord application named **Ripper Zone**. In its Bot settings enable **Server Members Intent** and **Message Content Intent**. Invite it to the Rip Cars server using scopes **bot** and **applications.commands**.
+## Snapshots without manual files
 
-Grant View Channels, Send Messages, Send Messages in Threads, Read Message History, Embed Links, Attach Files, Add Reactions, Manage Messages, Create Public Threads and Manage Threads. Grant Manage Roles if achievement tiers will be enabled. Do not grant Administrator. Put the bot role above its three achievement roles. Those roles must have zero server permissions.
+Open Administration → Snapshots:
 
-On Ubuntu 24.04:
+- **Rumble Event / Ordinary Raffle Event:** choose a recent finalized event, enter RC per participant, inspect the roster count and total, then confirm.
+- **Task Cycle:** choose a task and cycle. Base payments share their identity with reaction and individual review awards.
+- **Channel / Thread Window:** choose a channel or active thread and time window. Human authors are counted once. The 5000-message cap aborts an incomplete scan without paying it.
+- **Message Reactions:** paste a message link and emoji. Human participants are read across API pages, then previewed.
+
+The independent local helper reads only the two configured source databases with SQLite read-only connections. Zone's service account is not granted access to them. The authenticated endpoint is bound to localhost and accepts a fixed source name and event ID, never a Discord-supplied file path or SQL.
+
+Defaults match the inspected VPS installations:
+
+```text
+RUMBLE_DATABASE_PATH=/opt/ripcars-rumble/shared/data/rumble.sqlite3
+RAFFLE_DATABASE_PATH=/var/lib/ripcars-raffle/raffle.sqlite3
+```
+
+If the ordinary raffle uses another DB_PATH in `/etc/ripcars-raffle.env`, the helper reads that setting when no Zone override exists. For a custom installation, set the appropriate source path in `/etc/ripper-zone.env` and restart only `ripper-zone-recovery.service`. No source bot is stopped, upgraded or written by Zone.
+
+Rumble exports its complete finalized ranking, including non-winners. Ordinary raffle exports the **initial eligible pool**, including eligible losing entrants, rather than later replacement pools or accounts excluded by the source raffle. This participation rule is displayed in the preview. Paid RC raffle purchases do not generate participation RC.
+
+Finalized event identity is source + server + event + member. Reconfirming/importing the same event pays zero. A different roster or amount for an already-paid event is refused. General window/reaction snapshots are separate explicit manual award operations; the same confirmation is idempotent, but starting another snapshot is a new award. The export/import CLI remains an advanced transfer fallback.
+
+## Community tasks and reactions
+
+Create a task, choose one-time/daily/weekly recurrence, then enter title, instructions, base RC, cooldown and duration in separate fields. Each task gets a public thread and a durable brief. Editing refreshes the original brief. Base RC becomes fixed after participation starts; duplicate a task for a new reward policy. Daily cycles start at UTC midnight; weekly cycles use the task's creation date at UTC midnight.
+
+Default moderator reactions:
+
+| Reaction | Award |
+| --- | --- |
+| ✅ | Task base RC, once per member per cycle |
+| 🏅 | Separate 5 RC quality bonus, once per message and emoji |
+
+Settings → Reward Reactions changes emojis and amounts. Base reads the task reward; quality is an integer from 1 to 1000 RC. Rules support Unicode and server emojis. New reaction events can be paused. A recorded inbox retains the original rule while retrying temporary failures. Existing payments are never topped up after changing a rule. Another moderator must review your own task contribution.
+
+Presence recording is not individual content approval. Cycle snapshots are moderator-approved batch rewards. Review the people and period before confirming. Posts made during downtime need Reviewed Contribution; reaction recovery scans up to 200 recent messages and does not invent missing post records. Moderators bypass posting cooldown. Members receive a cooldown explanation, with a thread fallback if DMs are closed.
+
+## Daily RC spin
+
+A member explicitly presses **Spin · Free**, once per UTC day. Opening a panel does not claim it.
+
+| RC | Probability |
+| ---: | ---: |
+| 2 | 33% |
+| 3 | 22% |
+| 4 | 14% |
+| 5 | 9% |
+| 6 | 7% |
+| 8 | 5% |
+| 10 | 4% |
+| 15 | 3% |
+| 20 | 2.5% |
+| 100 | 0.5% |
+
+Reset is 00:00 UTC (03:30 Tehran). Exact long-run mean is 5 RC, not a guaranteed 500 RC per 100 spins. Secure integer sampling, request binding and an atomic claim/ledger transaction prevent duplicate rewards across concurrent clicks, midnight and restart. Odds remain fixed in distribution version 1.
+
+## Public RC raffles and roles
+
+Draft rules are editable until publication. Publishing freezes ticket price, cap, winner ceiling, minimum eligible entrants, deadline and the access-role contract. Purchases reserve RC atomically. Closing checks every entrant's current eligibility against the frozen contract. An uncertain HTTP lookup stops settlement rather than excluding an entrant. Cancellation, insufficient eligible entrants and definitely ineligible purchases refund reservations. Results commit before the public post is refreshed.
+
+Draws use a prepublished seed commitment and deterministic weighted HMAC selection without repeated winners. Prize claim, delivery, forfeiture and replacement are recorded. Replacement retains original weights, excludes all prior winners and charges no new RC. Verify Draw downloads the proof. A proof checks selection consistency, not an operator's honesty or independent truth of Discord observations.
+
+Exactly three optional achievement tiers use earned RC, rewarded task cycles and paid events. All three thresholds apply; only the highest eligible role remains. Skip during setup or save disabled and enable later. Use dedicated zero-permission roles below the bot, not Ripper, OG, staff or another bot's role. Validation protects configured access/staff roles and foreign registered resources; it cannot identify every manually created role's intended purpose from its name.
+
+## First installation
+
+Create a separate Discord application. Enable **Server Members Intent** and **Message Content Intent**. Invite using **bot** and **applications.commands**. Grant View Channels, Send Messages, Send Messages in Threads, Read Message History, Embed Links, Attach Files, Add Reactions, Manage Messages, Create Public Threads and Manage Threads. Grant Manage Roles for achievement tiers. Do not grant Administrator.
 
 ```bash
 sudo apt update
@@ -36,144 +113,20 @@ cd Ripper-Zone
 sudo bash scripts/install.sh
 ```
 
-The installer prompts privately for the new bot token, server ID and your Discord user ID. The server defaults to **1560350027631562923**. No token belongs in GitHub, Discord messages or shell command arguments.
+The installer privately requests the token, server ID (default 1560350027631562923) and required owner user IDs. Invalid fields are re-prompted individually. Prepare five text channels, including a private moderator log. Open `/ripper setup`, select channels/access, skip or configure roles, activate, then publish the panel and leaderboard using the setup completion buttons. Health checks permissions and accounting.
 
-Installation stages a root-owned release and venv, installs the pinned dependency lock, runs the full simulated test suite, checks an isolated database copy, backs up an existing database and then activates this bot's two services. Existing credentials and the live RC ledger are preserved during upgrades.
+## Verification and operations
 
-The readiness wait is bounded. If startup fails, the previous code is restored when one exists. A new installation with a wrong token or disabled privileged intents needs the cause corrected before restarting.
+The installer stages and checks code, runs the full simulated suite, verifies an isolated SQLite copy, backs up existing data and activates only Zone's two services. Extended presentation settings are stored separately so the previous release still reads the legacy settings row. Rollback checks a backup before stopping the running service and restores the previous running state on failure. It switches code without rewinding the ledger.
 
-## First Discord setup
-
-1. Prepare five existing text channels: member panel, community tasks, leaderboard, public RC raffles and private moderator logs.
-2. Run **/ripper setup** as the configured owner or server owner.
-3. Select the five channels, the existing Ripper access role and moderator roles. The wizard saves each selection.
-4. Skip achievement roles, or configure exactly three existing, unprivileged roles and their metrics. Role names and thresholds are your choices.
-5. Activate the program.
-6. Open **/ripper admin**, then **Publish Member Panel**.
-7. Run **/ripper leaderboard_publish**.
-8. Run **/ripper doctor** and complete the [live acceptance checklist](docs/OPERATIONS.md#live-acceptance).
-
-The moderator log channel must be hidden from @everyone and the community access role. The bot does not change channel permission overwrites, Gate verification, OG/staff roles or other bots' settings.
-
-Set extra primary administrators or moderator role IDs using **/ripper access**. Environment OWNER_IDS and the server owner remain primary administrators. Discord's Administrator permission alone does not grant Zone administration.
-
-## Daily Spin
-
-Opening the panel does not claim the reward. Members press **Spin · Free**.
-
-| Reward | Probability |
-| --- | ---: |
-| 2 RC | 33% |
-| 3 RC | 22% |
-| 4 RC | 14% |
-| 5 RC | 9% |
-| 6 RC | 7% |
-| 8 RC | 5% |
-| 10 RC | 4% |
-| 15 RC | 3% |
-| 20 RC | 2.5% |
-| 100 RC | 0.5% |
-
-Reset: **00:00 UTC**, currently **03:30 Tehran**. Minimum 2, maximum 100, overall expected value exactly 5 RC. An individual set of 100 spins is not guaranteed to produce 500 RC. The conditional mean of the eight middle outcomes is 768/133 RC, approximately 5.774.
-
-The distribution is versioned and immutable within v1. It uses secure integer sampling across 10,000 outcomes. Daily claim, ledger entry and request binding commit together. Parallel clicks, process death and a retried request crossing midnight do not create another reward.
-
-## Community Tasks
-
-Use **/ripper admin → New Task**. Set instructions, base reward, period (once/daily/weekly), posting cooldown and optional end time. The bot creates a public thread and posts the instructions.
-
-Members post text, photos or links in that thread. Default moderator reactions:
-
-| Reaction | Action |
-| --- | --- |
-| ✅ | Award the task's base RC once per member and cycle |
-| 🏅 | Award a separate 5 RC quality bonus once per message and reaction |
-
-Configure reactions using **/ripper reactions**. Multiple moderators and a later task snapshot share the same base reward identity. Quality rewards are separate and explicit.
-
-**/ripper task_snapshot** previews accepted contributors for a selected cycle. **/ripper task_manage list** shows the current cycle number. Daily cycles reset at UTC midnight. Weekly cycles last seven days from the task's creation date at UTC midnight. One-time tasks use cycle 0.
-
-Posting cooldown and reward period are separate. Moderators bypass posting cooldown. Over-cooldown posts are deleted and a DM is attempted. Permission failures appear in logs. Posts made while the bot was offline need moderator review through **/ripper task_reward**. The bot does not reconstruct missed participation from unrelated chat history.
-
-Use **task_manage** to close/archive tasks, change/reset cooldowns, resend a brief or bind a created thread after an uncertain response. Deadlines close tasks and queue thread archival. Reviews of an already accepted cycle remain possible after closing.
-
-## Event snapshots from existing bots
-
-The source bots keep their databases private. Run the export tool as an account already allowed to read that source database, or as root. Zone never writes to the source database.
+The independent helper diagnoses readiness and worker progress, and requests bounded restarts: three failed probes, no more than three attempts per 15 minutes and at least 120 seconds apart. Credential/intents markers and failed SQLite integrity checks stop automatic restart. It does not repair corrupt financial records. Daily backups are verified and local; offsite storage is not configured.
 
 ```bash
-sudo /opt/ripper-zone/current/.venv/bin/python /opt/ripper-zone/current/scripts/export_event.py \
-  rumble /ACTUAL/PATH/rumble.sqlite3 1560350027631562923 GAME_ID > rumble-event.json
-
-sudo /opt/ripper-zone/current/.venv/bin/python /opt/ripper-zone/current/scripts/export_event.py \
-  raffle /ACTUAL/PATH/raffle.sqlite3 1560350027631562923 RAFFLE_ID > raffle-event.json
-```
-
-Replace the path and event ID with actual values from the source bot. Upload the JSON to **/ripper snapshot**, choose RC per person, review the participant count and confirm.
-
-Rumble support targets the inspected 1.2 schema: finalized games, complete ranking IDs and matching game player count. Ordinary Raffle support targets the inspected 1.1 schema: completed initial eligible draw pool, not winners only or replacement rounds. Truncated/unknown source formats fail closed.
-
-An export contains source, guild, event ID, sorted participant IDs and checksum. It contains no seeds, tokens or personal profiles. The checksum detects accidental changes; it is not a signature that authenticates a moderator's source file. Snapshot permission is therefore a financial moderator permission.
-
-Reimporting the same source/guild/event pays zero. Changing its amount or participant list is rejected. Invalid rewards are corrected with a recorded ledger operation, not another import.
-
-## Public RC raffles
-
-**/ripper admin → New RC Raffle** creates a reviewed draft. Publishing freezes price, per-member ticket cap, deadline, minimum unique eligible members, winner count and the current access role. The public post contains a seed commitment and rules hash.
-
-Members press **Buy Tickets**, enter a quantity, review the private cost and confirm. Registration and RC reservation occur in one transaction. A receipt and the entry remain visible after message failures. More tickets mean proportionally more draw weight. A member wins at most once in each raffle.
-
-At closing the bot freezes purchases and freshly checks each member with Discord. A confirmed departed/bot/missing-role account is excluded and refunded. A timeout, Forbidden response or other uncertain lookup pauses finalization and retries; it never silently removes a candidate.
-
-If minimum unique eligibility is not met, all reservations are refunded. Otherwise eligible reservations are consumed. Earned RC and leaderboard scores do not fall when tickets are spent. Buying RC raffle tickets does not itself earn participation RC.
-
-Results are saved before the original public post is updated. Failure to update the message never redraws or recharges. **My Entry** shows receipts. Winners press **Claim Prize**; moderators record delivery or forfeiture with **/ripper raffle_manage**. Replacement draws use the original eligible weights, exclude every previous winner and charge no new RC.
-
-Download **Verify Draw** and run:
-
-```bash
-python scripts/rzctl.py verify-proof raffle-1-proof.json
-```
-
-Verification checks commitments, frozen rule hash, initial eligibility pool, requested winner counts, round hashes, deterministic HMAC selection and unchanged replacement weights. It does not independently verify the truth of Discord eligibility observations or prevent a dishonest operator with database access.
-
-## Accounting and roles
-
-Available RC is spendable. Reserved RC belongs to pending ticket purchases. Earned RC is the valid contribution score and the ranking/role metric. All financial effects are append-only ledger rows with stable identities.
-
-**/ripper correction** records a reasoned account correction. **/ripper revoke_reward** reverses one invalid original reward and removes its task/event metric, without deleting the original record. Revoking a daily reward does not create another free spin. Negative corrected balances block purchases until covered by future earnings.
-
-Task count is the number of rewarded task cycles, not posts. Event count is distinct paid Rumble and ordinary-raffle events. A revoked base contribution no longer counts. All enabled metrics in a tier must be met. Only the highest eligible achievement role is retained; the new role is added before old tiers are removed.
-
-Gate's Ripper, OG, staff, claim roles and Raffle's temporary roles are protected through role validation and shared coordination protocol 2. Zone only claims its own messages and achievement roles. It never resets the shared registry or another controller's lease.
-
-## Upgrade and inspect
-
-```bash
-cd ~/Ripper-Zone
-git pull --ff-only
-sudo bash scripts/install.sh
 sudo systemctl status ripper-zone.service ripper-zone-recovery.service --no-pager
-sudo journalctl -u ripper-zone.service -n 80 --no-pager
 curl -fsS http://127.0.0.1:3040/health
+sudo journalctl -u ripper-zone.service -n 80 --no-pager
 ```
 
-If health ports conflict, change HEALTH_PORT and RECOVERY_PORT in **/etc/ripper-zone.env** before installation. Neither endpoint is exposed on a public interface.
+[Administration](docs/ADMIN.md) · [Operations](docs/OPERATIONS.md) · [Product](docs/PRODUCT.md) · [Validation](docs/VALIDATION.md) · [Acceptance](docs/ACCEPTANCE.md)
 
-Full operations, credential correction, backups and rollback: [docs/OPERATIONS.md](docs/OPERATIONS.md).
-Command reference: [docs/ADMIN.md](docs/ADMIN.md).
-Architecture and decisions: [docs/PRODUCT.md](docs/PRODUCT.md).
-Test scope and verification limits: [docs/VALIDATION.md](docs/VALIDATION.md).
-
-## Development
-
-```bash
-python3 -m venv .venv
-.venv/bin/pip install -r requirements-lock.txt
-.venv/bin/python -m pytest -q
-cp .env.example .env
-# Edit .env locally. Local DATABASE_PATH and COORDINATION_DB may be relative paths.
-.venv/bin/python main.py
-```
-
-The managed VPS installer uses the fixed private database/shared registry paths in the example. Direct local development supports other paths.
+The test suite uses real SQLite, processes, SDK components and HTTP serialization with simulated Discord effects. Live Discord/VPS acceptance is separate and is not claimed by passing automated tests.
