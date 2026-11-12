@@ -4,12 +4,22 @@ import argparse
 import asyncio
 import json
 import os
+import pwd
 import sys
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from dotenv import load_dotenv
 from ripper_zone.storage import Database
 from ripper_zone.drawing import verify
+
+
+def drop_service_user():
+    # Root maintenance must not leave root-owned SQLite WAL/SHM files behind.
+    if os.geteuid()==0:
+        user=pwd.getpwnam('ripperzone')
+        os.initgroups(user.pw_name,user.pw_gid)
+        os.setgid(user.pw_gid)
+        os.setuid(user.pw_uid)
 
 
 async def main():
@@ -25,6 +35,7 @@ async def main():
         if not verify(json.loads(Path(a.file).read_text())):raise SystemExit("Proof verification FAILED")
         print("Proof selection and hashes verified. Live Discord eligibility is separately audited.");return
     load_dotenv(os.environ.get('ENV_FILE','/etc/ripper-zone.env'))
+    if a.action!='bind-recovery':drop_service_user()
     db=Database(os.environ.get('DATABASE_PATH','/var/lib/ripper-zone/ripper-zone.sqlite3'))
     guild=int(os.environ['DISCORD_GUILD_ID'])
     if a.action=='backup':
