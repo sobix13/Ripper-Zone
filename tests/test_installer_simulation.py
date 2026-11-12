@@ -52,6 +52,19 @@ if args[:2]==['-m','pytest']:
  args=['-m','pytest','-q','tests/test_spin_ledger.py','tests/test_tasks_raffles.py']
 elif args and args[0].endswith('preflight.py') and '--database' not in args:
  print('Environment preflight simulated');sys.exit(0)
+elif args and args[0].endswith('rzctl.py'):
+ import asyncio,importlib.util
+ target=pathlib.Path(args[0]).resolve()
+ assert target.is_relative_to(pathlib.Path(os.environ['SIM_BASE'])/'releases')
+ spec=importlib.util.spec_from_file_location('simulated_rzctl',target)
+ ctl=importlib.util.module_from_spec(spec);spec.loader.exec_module(ctl)
+ def simulate_service_user():
+  with open(os.environ['SIM_LOG'],'a') as f:
+   print(json.dumps(['service-user-simulated',os.geteuid(),os.getegid()]),file=f)
+ # Host accounts are simulated just like chown/useradd; real backups still run.
+ ctl.drop_service_user=simulate_service_user
+ sys.argv=[args[0],*args[1:]]
+ asyncio.run(ctl.main());sys.exit(0)
 os.execv(os.environ['SIM_PYTHON'],[os.environ['SIM_PYTHON'],*args])
 """)
     shim.chmod(0o755)
@@ -84,5 +97,8 @@ os.execv(os.environ['SIM_PYTHON'],[os.environ['SIM_PYTHON'],*args])
     assert (base/'current').resolve()==current
     with sqlite3.connect(data/'ripper-zone.sqlite3') as c:assert c.execute('SELECT available,earned FROM accounts').fetchone()==(25,25)
     calls=[json.loads(line) for line in (tmp_path/'host.jsonl').read_text().splitlines()]
+    identities=[x for x in calls if x[0]=='service-user-simulated']
+    assert identities and all(x[1:]==[os.geteuid(),os.getegid()] for x in identities)
+    assert (source/'scripts/rzctl.py').read_bytes()==(ROOT/'scripts/rzctl.py').read_bytes()
     assert any(x[0]=='python' and x[1:3]==['-m','pytest'] for x in calls)
     assert not any(x[0]=='systemctl' and any('gate.service' in part or 'crew.service' in part or 'rumble.service' in part for part in x) for x in calls)
