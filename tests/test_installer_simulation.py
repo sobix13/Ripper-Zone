@@ -64,6 +64,9 @@ os.execv(os.environ['SIM_PYTHON'],[os.environ['SIM_PYTHON'],*args])
     first=run('1.0.0')
     assert first.returncode==0,first.stdout+first.stderr
     original=(base/'current').resolve()
+    assert (original/'.venv').stat().st_mode&0o055==0o055
+    assert (original/'.venv/bin').stat().st_mode&0o055==0o055
+    assert (original/'ripper_zone').stat().st_mode&0o055==0o055
     # A real private ledger is created between deployments.
     sys.path.insert(0,str(ROOT))
     from ripper_zone.storage import SCHEMA

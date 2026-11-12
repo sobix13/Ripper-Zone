@@ -171,3 +171,27 @@ def test_local_maintenance_drops_root_before_opening_private_sqlite(monkeypatch,
     monkeypatch.setattr(ctl.os,'setuid',lambda uid:calls.append(('uid',uid)))
     ctl.drop_service_user()
     assert calls==([('groups','ripperzone',5678),('gid',5678),('uid',5678)] if uid==0 else [])
+
+
+def test_recovery_unit_can_read_private_data_but_not_write_the_ledger():
+    from configparser import ConfigParser
+    def unit(name):
+        cfg=ConfigParser(interpolation=None);cfg.read(ROOT/'systemd'/name);return cfg['Service']
+    main=unit('ripper-zone.service');helper=unit('ripper-zone-recovery.service')
+    assert main['User']=='ripperzone' and main['CapabilityBoundingSet']==''
+    # UID 0 alone does not bypass a 0700 directory after all capabilities are dropped.
+    assert helper['User']=='root' and helper['CapabilityBoundingSet']=='CAP_DAC_READ_SEARCH'
+    assert helper['ProtectSystem']=='strict'
+    assert helper['ReadWritePaths']=='/var/lib/ripper-zone/recovery'
+    assert main['ReadOnlyPaths']=='/var/lib/ripper-zone/recovery'
+
+
+def test_staged_public_code_is_readable_under_installer_private_umask(tmp_path):
+    import os
+    previous=os.umask(0o077)
+    try:staged=release.stage(ROOT,tmp_path/'release')
+    finally:os.umask(previous)
+    assert staged.stat().st_mode&0o777==0o755
+    assert all(p.stat().st_mode&0o055==0o055 for p in staged.rglob('*') if p.is_dir())
+    assert all(p.stat().st_mode&0o044==0o044 for p in staged.rglob('*') if p.is_file())
+    assert not (staged/'.env').exists()
