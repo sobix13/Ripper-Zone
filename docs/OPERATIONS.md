@@ -45,7 +45,7 @@ curl --max-time 5 -fsS http://127.0.0.1:3040/health
 sudo /opt/ripper-zone/current/.venv/bin/python /opt/ripper-zone/current/scripts/rzctl.py doctor
 ```
 
-Use /ripper doctor for the authenticated detailed report without placing a secret in command arguments.
+Use Administration → Health / Recovery or /ripper doctor for the authenticated detailed report without placing a secret in command arguments.
 
 ## Token/intents correction
 
@@ -79,7 +79,7 @@ Failed upgrades before activation keep the old release. Failure after switching 
 
 ## Publication and queue repair
 
-Use /ripper doctor to identify pending publication reviews and failed jobs. Bind actual message/thread IDs using the primary recovery commands in the [admin guide](ADMIN.md).
+Use Administration → Health / Recovery or /ripper doctor to identify pending publication reviews and failed jobs. Bind actual message/thread IDs using the primary recovery commands in the [admin guide](ADMIN.md).
 
 If the helper's status send timed out, stop the helper and inspect the private log channel. Bind the known message with:
 
@@ -114,3 +114,12 @@ The repository was tested without a Discord token or access to the production VP
 12. Review the other bot services. Their processes, data and resources should retain their previous state.
 
 Use small reversible test RC amounts and a test prize during acceptance. The simulated suite does not claim these live checks were run.
+
+
+## 1.1.0 source connection and rollback compatibility
+
+The authenticated recovery endpoint `/events` accepts only source=rumble|raffle and an optional event ID. Source database paths come only from root-controlled environment configuration. Reads use SQLite mode=ro and query_only. No arbitrary Discord-supplied path or SQL is executed. Defaults are documented in README. The helper retains a read-only filesystem and its existing capability limit; no source database permissions are relaxed.
+
+Presentation settings and their history are stored in meta_flags. The legacy settings JSON and financial schema remain readable by 1.0.1. A code rollback preserves RC, reservations, source snapshots and extended settings. Old code cannot process new presentation/reaction jobs; their durable records remain available for a later re-upgrade and retry. Rollback verifies an isolated backup before stopping the current services and restores their previous running state on failure.
+
+This release's automated tests do not connect to the production VPS or Discord. Complete the live acceptance checklist after upgrade, especially permissions, real event roster counts, callback rendering, role hierarchy, recovery service and mobile layout.

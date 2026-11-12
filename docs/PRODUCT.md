@@ -16,7 +16,7 @@ This version serves the Rip Cars community, including members who do not buy pac
 | drawing.py | Committed deterministic weighted HMAC selection and proof verification |
 | sources.py | Read-only export adapters for inspected Rumble/Raffle schemas |
 | service.py | Fresh Discord eligibility, role validation, queue delivery, thread/raffle publication and maintenance |
-| ui.py | Private member/admin panels, public persistent controls and forms |
+| ui.py / member_ui.py / admin_ui.py / guides.py / copy.py | Native public/private controls, member workflows, moderator forms, guides and validated editable copy |
 | bot.py | Application lifecycle, command permissions, task message/reaction events and handlers |
 | coordination.py / suite_protocol.py | Shared Rip Cars protocol 2 ownership and mirrored setup leases |
 | operations.py | Main health server and independent owner-controlled bounded recovery |
@@ -66,6 +66,6 @@ The shared registry contains ownership and setup leases only. Financial data sta
 
 ## Deliberate boundaries
 
-Event integration uses explicit source export/import. It does not silently add database readers or deploy code to the existing source bots. Channels and achievement roles are selected from existing server resources. The bot checks their permissions and ownership; it does not redesign the server or change Gate/Crew resources.
+Event integration uses an authenticated localhost endpoint in the existing independent helper. It reads finalized source data through fixed, root-configured read-only adapters. The Zone service account receives no access to source databases and no source service is changed. Export/import remains an advanced fallback. Channels and achievement roles are selected from existing server resources. The bot checks their permissions and ownership; it does not redesign the server or change Gate/Crew resources.
 
 There is no offsite backup target configured, no payment integration, no cash redemption and no automatic repair of a corrupt ledger. These are not represented as completed features.

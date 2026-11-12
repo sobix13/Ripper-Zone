@@ -1,69 +1,48 @@
-# Administration
+# Panel administration · 1.1.0
 
-Primary administrators are the server owner, OWNER_IDS and configured primary_users. Moderators are members of configured manager_roles. Roles are fetched fresh for each authorization; a stale interaction member object is not a permission grant.
+Open `/ripper admin`, or Administration from your member home when authorized. Routine tasks do not require command names or numeric member IDs.
 
-| Command | Scope | Use |
-| --- | --- | --- |
-| /ripper panel | Member | Open a private panel |
-| /ripper admin | Moderator | Open operation forms and tools |
-| /ripper setup | Primary | Seven-step channel/access wizard; optional three-role step |
-| /ripper doctor | Moderator | Private JSON health, permissions, consistency and recovery report |
-| /ripper snapshot | Moderator | Preview and confirm finalized Rumble/ordinary-raffle participation |
-| /ripper task_snapshot | Moderator | Preview accepted task contributors for a cycle |
-| /ripper task_reward | Moderator | Review and pay one member's task/cycle, including offline posts |
-| /ripper task_manage | Moderator | List, close/archive, cooldown/reset, resend brief; thread binding is primary-only |
-| /ripper raffle_manage | Moderator | List, publish, close, cancel, delivered, forfeit, replace and refresh; message binding is primary-only |
-| /ripper correction | Primary | Confirm a signed integer adjustment with reason |
-| /ripper revoke_reward | Primary | Confirm reversal of a specific invalid original reward |
-| /ripper settings_export | Primary | Export settings without runtime message IDs |
-| /ripper settings_import | Primary | Validate and preview changed fields, then confirm |
-| /ripper settings_history | Primary | List or validate/restore one of 30 retained previous configurations |
-| /ripper report | Moderator | CSV: leaderboard, ledger, tasks, raffles or audit |
-| /ripper access | Primary | Set primary user IDs, manager role IDs or optional spin role |
-| /ripper reactions | Primary | Configure/remove base or quality reward reactions |
-| /ripper panel_recover | Primary | Bind a known application-owned panel/leaderboard message |
-| /ripper leaderboard_publish | Primary | Publish once or refresh the public leaderboard |
-| /ripper recovery | Primary | Retry failed jobs, verify/unpause accounting, request bounded restart, mark a confirmed deleted panel missing |
-
-## Daily workflow
-
-Create tasks through the admin panel. Approve valid posts with ✅. Award 🏅 deliberately when quality merits a separate bonus. A quality snapshot is an additional award operation, not an alternative label for the base reward. Re-running a new quality snapshot deliberately adds another bonus; repeating the same confirmation does not.
-
-Use task_manage list to find cycle IDs. Use task_snapshot for all accepted members in one cycle, or task_reward for a specific reviewed contribution. Snapshot and reaction base awards use the same task/cycle/member identity.
-
-Ordinary event participation is paid only after importing and confirming the source export. An already-paid event cannot be silently edited by reuploading a different list or amount. Use correction or revoke_reward to fix a reviewed mistake.
-
-Check raffle_manage list for delayed closes or publication errors. A closing raffle retains reserved RC until eligibility checks succeed. Cancellation is available before closing starts; an already-closing raffle needs its eligibility failure resolved before settlement. A completed draw is final. Replacement requires an explicitly forfeited, undelivered prize.
-
-Use report ledger to find a reward's ledger ID. Use revoke_reward to invalidate that contribution and its task/event metric. Use correction for a general amount adjustment. Both preserve history and actor/reason.
-
-## Setup details
-
-Five channel selections are required before activation. Re-running the wizard changes selections without clearing accounts. Skip disables achievement-role assignment and hides My Progress. Existing achievement-role definitions remain editable for later activation.
-
-Achievement role form fields are:
-
-```text
-role ID, minimum lifetime earned RC, minimum rewarded task cycles, minimum paid events
-```
-
-All three metric thresholds must be nondecreasing between tiers, and at least one must increase. Every tier must require at least one nonzero metric. Select existing roles with zero permissions. The bot refuses managed/default roles, access/spin/staff collisions, foreign coordination bindings and roles at/above the bot.
-
-Sensitive program controls require a primary administrator even if a moderator opens their form. Permission checks repeat on submission/confirmation. Members cannot use another member's private screen.
-
-Private panels expire after ten minutes. Reopen the public panel or /ripper panel. Public panel and raffle button identities are restored on restart.
-
-## Ambiguous publication
-
-Financial decisions are durable. Discord sends are separate network operations, so a timeout does not prove that no message/thread was created.
-
-| Uncertain effect | Recovery |
+| Section | Actions |
 | --- | --- |
-| Member panel send | Find its application-owned message and use panel_recover |
-| Leaderboard send | Find its message and use panel_recover kind leaderboard |
-| Task thread creation | Find the thread and use task_manage bind_thread |
-| RC raffle public post | Find the matching post and use raffle_manage bind_message |
-| Raffle result update | Retry refresh; original result and ticket settlement remain unchanged |
-| Recovery pulse post | Stop helper, find the post, use local rzctl bind-recovery, restart helper |
+| Community Tasks | New, active/past/review lists, details, participant accounts, edit title/body/reward/cooldown, human-readable UTC deadline, duplicate, close/archive, cycle snapshot, reviewed base/quality contribution, reset cooldown, reaction recovery, brief refresh and binding recovery |
+| RC and Members | Native member selector, account/history, award preview, signed correction and invalid reward reversal |
+| Snapshots | Rumble/ordinary raffle finalized events, task cycle, channel/thread window, message reactions |
+| RC Raffles | Draft create/edit, publish preview, close/retry, cancel/refund, proof, prize delivery/forfeit and replacement |
+| Settings | Channels/access, message movement, reactions, 25 editable copy fields, three-role wizard, program toggles, export/import/history and restore |
+| Reports | Leaderboard, ledger, tasks, raffles and audit CSV |
+| Health / Recovery | Readiness, accounting, failed-job details, pending publications, source connection checks, JSON detail, retry, verified resume, backup now and bounded restart |
+| Guides | Contextual member and moderator instructions |
 
-If no panel exists after manual inspection, the local operator tool supports an explicit verified-missing review. Automatic recovery does not guess that an uncertain send failed. A primary administrator may cancel an unbound RC raffle draft/publication and create a new one after confirming that no valid post should remain.
+Primary administrators: server owner, OWNER_IDS and configured primary users. Moderators: configured manager roles. Primary access is required for settings, access, correction/revoke and recovery. Fresh permissions are checked on submitted operations. Discord Administrator alone does not grant Zone's configured moderator authority.
+
+## Copy editing
+
+Settings → Messages and Branding lists five core fields (panel title, welcome, About, support and task footer), plus twenty bounded message templates. Select, edit, preview and confirm. Supported placeholders are shown beside the field. Attribute/index expressions, conversions, format specifiers and unknown names are rejected. Dynamic financial facts remain visible independently of custom copy.
+
+Reopen private pages after saving. Relevant existing public posts are queued for refresh; no blind duplicate publication is used. Changes to copy do not change published raffle financial contracts. The message catalog and public synchronization are tested separately from cosmetic rendering in a real Discord client.
+
+## Settings and message moves
+
+Channels and Access edits one field at a time. A channel containing a bound public panel/leaderboard cannot be changed by an ordinary settings save, import or history restore. Use **Move Public Message**. The new send is durably marked, bound, and the old post becomes a link. An uncertain send remains in recovery; it is not retried as a new send. Bind an observed message from Health if a response was lost.
+
+History retains thirty snapshots. Base fields and extended presentation fields are stored separately for compatibility with 1.0.1. Reverting code preserves financial data. Older code does not understand the new presentation jobs; re-upgrade to resume those workflows and retry failed jobs. Do not restore an older ledger to fix a display failure.
+
+## Participation rules
+
+Task base awards share task/cycle/member identity across reactions, manual review and cycle snapshots. Quality bonuses are extra operations. Removing a reaction does not reverse RC. Revoke a specific invalid reward with a reason. That also removes its relevant achievement metric.
+
+Recorded task messages represent presence, not a content approval queue. Cycle snapshot confirmation approves the batch. General window/reaction snapshots are new manual award operations. Their confirmation is repeat-safe, but starting a new snapshot intentionally creates a new award. Finalized event snapshots have stronger event-level deduplication.
+
+Ordinary raffle participation uses its initial eligible pool, including losing entrants. Accounts excluded by that source raffle are not included. Rumble uses its complete finalized ranking. These are explicit source rules; a chat/reaction scan is not a substitute for a finalized game roster.
+
+## Source connection
+
+Health → Check Rumble Connection / Check Raffle Connection lists the latest 25 completed events. Defaults match the existing deployment layouts. For a custom path, a VPS owner sets RUMBLE_DATABASE_PATH or RAFFLE_DATABASE_PATH in the private Zone environment and restarts the recovery helper. No source bot's credentials, database ownership or service are changed.
+
+The advanced `/ripper snapshot` attachment import and `scripts/export_event.py` remain available for manual transfers. They are not required by the normal event picker. JSON checksums detect corruption; they do not authenticate a manually fabricated file. Snapshot access is a financial moderator permission.
+
+## Recovery boundaries
+
+Health displays failed job keys/errors and publication review IDs. Retry repeats effects with their original financial identities. An accounting pause clears only after reconciliation succeeds. Backup Now writes a private verified SQLite copy on the VPS, never uploads the ledger to Discord. Restart uses the helper's fixed target and persisted budget. Independent pulse reactions accept environment OWNER_IDS only.
+
+If a task brief send is uncertain, inspect the thread and use Recover Brief Binding with its existing message ID. If the thread itself was never bound, select the task under Publication Review and use Bind Thread. Message/thread IDs are needed for exceptional binding recovery, not routine task creation or participant selection.
