@@ -23,7 +23,8 @@ ProtectHome=true
 ReadWritePaths=/var/lib/ripper-zone/recovery
 RestrictSUIDSGID=true
 LockPersonality=true
-CapabilityBoundingSet=
+# Read the service user's private SQLite files without granting write bypass.
+CapabilityBoundingSet=CAP_DAC_READ_SEARCH
 
 [Install]
 WantedBy=multi-user.target
