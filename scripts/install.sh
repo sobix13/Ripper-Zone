@@ -32,7 +32,7 @@ cd "$RELEASE"
 "$RELEASE/.venv/bin/python" -m pytest -q "$RELEASE/tests"
 ENV_FILE="$ENV_FILE" "$RELEASE/.venv/bin/python" "$RELEASE/scripts/preflight.py"
 chown -R root:root "$RELEASE"
-chmod -R go-w "$RELEASE"
+chmod -R u+rwX,go+rX,go-w "$RELEASE"
 WAS_MAIN=0
 WAS_RECOVERY=0
 systemctl is-active --quiet ripper-zone.service && WAS_MAIN=1

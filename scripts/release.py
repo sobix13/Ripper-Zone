@@ -44,6 +44,11 @@ def stage(source,destination):
         target.chmod(0o755 if relative.endswith('.sh') else 0o644)
     if manifest(destination)!=wanted:raise ValueError("Staged release checksum differs.")
     (destination/'RELEASE-MANIFEST.json').write_text(json.dumps(wanted,indent=2)+'\n')
+    # The installer uses umask 077, but the non-root service must read public code.
+    destination.chmod(0o755)
+    for directory in destination.rglob('*'):
+        if directory.is_dir():directory.chmod(0o755)
+    (destination/'RELEASE-MANIFEST.json').chmod(0o644)
     return destination
 
 
