@@ -1,0 +1,14 @@
+name: simulated-production-checks
+on: [push, pull_request]
+jobs:
+  tests:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements-lock.txt
+      - run: python -m pytest -q
+      - run: bash -n scripts/install.sh scripts/rollback.sh
+      - run: python -m compileall -q ripper_zone scripts main.py
