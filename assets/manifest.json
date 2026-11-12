@@ -1,0 +1,67 @@
+[
+  {
+    "file": "welcome.webp",
+    "source": "st/27_GM.webp",
+    "sha256": "c8dc92bfce1b078a6e9472ea5da062ff7b79e6bd42cb0f7a57f800e0ed8b904c"
+  },
+  {
+    "file": "balance.png",
+    "source": "emo/rip_lean.png",
+    "sha256": "be3f55078136a6dfb9ba42d30791708c59fce1c339a81f195801a04708de24ed"
+  },
+  {
+    "file": "tasks.png",
+    "source": "emo/rip_announce.png",
+    "sha256": "b29a8c296321a9cb4f24c92b797da173859ca8718491a60d2943fcf99ac28f23"
+  },
+  {
+    "file": "spin.png",
+    "source": "emo/rip_hype.png",
+    "sha256": "a954446fdbfb10301fb378d3b414a1565020cd97ee78a0dfa0ab731b2d3b8e3b"
+  },
+  {
+    "file": "raffles.png",
+    "source": "emo/rip_gift.png",
+    "sha256": "9c40397980f7cde594b262640313935e876a4b400b52cacf2f9b19201466348a"
+  },
+  {
+    "file": "leaderboard.webp",
+    "source": "st/28_Trophy.webp",
+    "sha256": "e06c95982c7556b3bf006759f07f95c42630a2d929a42ae5840c6014f30afc10"
+  },
+  {
+    "file": "history.webp",
+    "source": "st/05_Receipt.webp",
+    "sha256": "38db28185477040509025d0401bcb8a453bec8e199f84361a9250cad4122eb6d"
+  },
+  {
+    "file": "waiting.webp",
+    "source": "st/30_Wen.webp",
+    "sha256": "ea1870e80f6134cf2d810f0e03338d1b2db84292cb7dc04dbb6830cb62a168fb"
+  },
+  {
+    "file": "jackpot.gif",
+    "source": "anim/rip_party_a.gif",
+    "sha256": "94c8dd590c1320fe8060f33cd9d81258e3bc047542bb2d0761282e00e01d52cb"
+  },
+  {
+    "file": "progress.png",
+    "source": "emo/rip_thumbsup.png",
+    "sha256": "e2e53b6742534783b691781fcfc7ae380317ddde89277ce99b12e9bcdb36e08e"
+  },
+  {
+    "file": "help.webp",
+    "source": "st/11_News.webp",
+    "sha256": "75419ca22130c5b9ab4b063203576e6cb3ee66fefa4ee29163709f99b1e9d16a"
+  },
+  {
+    "file": "health.png",
+    "source": "emo/rip_wrench.png",
+    "sha256": "ba2c813773a71c988468e8883e5fa6e808e958c45385098e22c1ed7428a72dd6"
+  },
+  {
+    "file": "logo.png",
+    "source": "img/avatar_logo.png",
+    "sha256": "482a9e15b3269b7e7ef1cb3bc4f7bf209172f6dd5a8e568bc2a4b6dc3bddbdf0"
+  }
+]
