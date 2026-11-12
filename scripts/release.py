@@ -19,6 +19,7 @@ def files(root):
     for folder in FOLDERS:
         for path in (root/folder).rglob('*') if (root/folder).exists() else []:
             if path.is_symlink():raise ValueError("Release symlinks are forbidden: "+str(path))
+            if path.name=='.env' or path.name.endswith(('.sqlite3-wal','.sqlite3-shm','.db-wal','.db-shm','.pem','.key')):raise ValueError('Private runtime file in release folder: '+str(path))
             if path.is_file() and '__pycache__' not in path.parts and path.suffix not in ('.pyc','.db','.sqlite3'):
                 selected.append(path)
     for path in selected:
