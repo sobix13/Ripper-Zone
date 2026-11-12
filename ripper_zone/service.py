@@ -5,7 +5,8 @@ import logging
 import time
 from pathlib import Path
 import discord
-from .config import settings
+from .config import settings, canonical
+from .copy import phrase
 
 log=logging.getLogger(__name__)
 
@@ -82,6 +83,12 @@ class Service:
             role=guild.get_role(cfg['member_role']) if cfg['member_role'] else None
             if role and channel.permissions_for(role).view_channel:
                 raise ValueError("Hide the moderator log channel from the community access role.")
+            allowed={guild.me.id,guild.owner_id,*cfg['primary_users'],*getattr(self.bot,'owners',set()),*cfg['manager_roles']}
+            for target,overwrite in channel.overwrites.items():
+                if overwrite.view_channel is True and target.id not in allowed:
+                    if isinstance(target,discord.Role) and (target.permissions.administrator or getattr(getattr(target,'tags',None),'bot_id',None)==guild.me.id):continue
+                    raise ValueError('Moderator log has a View Channel allow for an unapproved role or member.')
+        if cfg['support_channel'] and not isinstance(guild.get_channel(cfg['support_channel']),discord.TextChannel):raise ValueError('Select a support channel in this server.')
         for key in ('member_role','spin_role'):
             if cfg[key] and not guild.get_role(cfg[key]):raise ValueError(f"{key} was deleted.")
         for rid in cfg['manager_roles']:
@@ -92,27 +99,113 @@ class Service:
         return cfg
 
     async def configure(self,guild,cfg,revision,actor):
+        old,_=await self.db.config(guild.id)
+        for kind in ('panel','leaderboard'):
+            if (old[kind+'_message'] or old['panel_state']=='sending' or await self.db.query('SELECT 1 FROM meta_flags WHERE key=?',(f'move:{guild.id}:{kind}',))) and cfg[kind+'_channel']!=old[kind+'_channel']:
+                raise ValueError('This public message is bound to its existing channel. Use Move Public Message in Settings first.')
         cfg=await self.validate_config(guild,cfg)
         # Reserve roles first. A private save failure leaves a safe ownership claim.
         for tier in cfg['tiers']:
             await self.bot.registry.record(guild.id,tier['role'],'role',str(tier['role']))
         return await self.db.save_config(guild.id,cfg,revision,actor)
 
+    async def move_public(self,guild,kind,channel_id,actor,revision):
+        from . import ui
+        if kind not in ('panel','leaderboard'):raise ValueError('Unknown public message type.')
+        cfg,rev=await self.db.config(guild.id)
+        if rev!=revision:raise ValueError('Settings changed. Reopen the move page.')
+        if channel_id==cfg[kind+'_channel']:raise ValueError('Choose a different channel.')
+        if not cfg[kind+'_message']:raise ValueError('Publish or recover the existing message first.')
+        candidate=dict(cfg);candidate[kind+'_channel']=channel_id
+        await self.validate_config(guild,candidate)
+        key=f'move:{guild.id}:{kind}'
+        def begin(c):
+            live,v=self.db._config(c,guild.id)
+            if v!=revision or c.execute('SELECT 1 FROM meta_flags WHERE key=?',(key,)).fetchone():raise ValueError('A public message move is already pending or settings changed.')
+            self.db._save_history(c,guild.id,actor,live)
+            c.execute('INSERT INTO meta_flags VALUES(?,?)',(key,canonical({'channel':live[kind+'_channel'],'message':live[kind+'_message']})))
+            live[kind+'_channel']=channel_id;live[kind+'_message']=0
+            if kind=='panel':live['panel_state']='sending'
+            else:c.execute("INSERT OR REPLACE INTO meta_flags VALUES('leaderboard_sending','1')")
+            self.db._put_config(c,guild.id,live,v+1)
+            self.db._audit(c,guild.id,actor,'public_message_move',kind)
+        await self.db.run(begin)
+        view=ui.gateway(self.bot,candidate) if kind=='panel' else ui.public_leaderboard(self.bot,await self.db.leaders(guild.id))
+        msg=await guild.get_channel(channel_id).send(view=view,files=view.files(),allowed_mentions=ui.MENTIONS)
+        def bind(c):
+            live,v=self.db._config(c,guild.id)
+            if live[kind+'_channel']!=channel_id:raise ValueError('Publication channel changed during move. Recover the sent message.')
+            live[kind+'_message']=msg.id
+            if kind=='panel':live['panel_state']='active'
+            self.db._put_config(c,guild.id,live,v+1)
+            if kind=='leaderboard':c.execute("DELETE FROM meta_flags WHERE key='leaderboard_sending'")
+        await self.db.run(bind)
+        await self.bot.registry.record(guild.id,msg.id,'message',kind+':'+str(msg.id))
+        await self.finish_move(guild,kind,msg.id)
+        return msg
+
+    async def finish_move(self,guild,kind,message):
+        key=f'move:{guild.id}:{kind}'
+        rows=await self.db.query('SELECT value FROM meta_flags WHERE key=?',(key,))
+        if not rows:return
+        old=json.loads(rows[0]['value']);cfg,_=await self.db.config(guild.id)
+        await self.db.enqueue(key,'redirect',guild.id,{**old,'key':key,'url':f'https://discord.com/channels/{guild.id}/{cfg[kind+"_channel"]}/{message}'})
+
     async def publish_task(self,guild,tid):
         task=await self.db.task(guild.id,tid);cfg,_=await self.db.config(guild.id)
         if task['status']!='creating':raise ValueError("Task already has a thread.")
         channel=guild.get_channel(cfg['tasks_channel'])
         # Any uncertain create result is left for explicit ID recovery, never repeated.
-        await self.db.execute("UPDATE tasks SET status='publishing' WHERE id=? AND status='creating'",(tid,))
-        period={0:'One-time',86400:'Daily UTC',604800:'Weekly, anchored to creation day UTC'}[task['period']]
-        text=f"Task #{tid}: {task['title']}\n\n{task['body']}\n\nBase reward: {task['reward']} RC · {period}\nPosting cooldown: {task['cooldown']} seconds.\nPost your contribution here. Moderators approve with the configured reward reactions."
-        if task['ends']:text+=f"\nDeadline: <t:{task['ends']}:F>"
+        if not await self.db.execute("UPDATE tasks SET status='publishing' WHERE id=? AND status='creating'",(tid,)):raise ValueError("Task publication is already in progress.")
         thread=await channel.create_thread(name=f"Task {tid} · {task['title']}"[:100],type=discord.ChannelType.public_thread,auto_archive_duration=1440,reason="Ripper Zone community task")
         # Bind before sending the brief. Failed brief delivery becomes a retry job.
         await self.db.execute("UPDATE tasks SET thread=?,status='active' WHERE id=? AND guild=? AND status='publishing'",(thread.id,tid,guild.id))
-        await self.db.enqueue(f"taskbrief:{tid}",'notice',guild.id,{'channel':thread.id,'text':text})
+        await self.db.enqueue(f'tasksync:{tid}','task_sync',guild.id,{'task':tid})
         await self.db.audit(guild.id,task['actor'],'task_published',f"{tid}:{thread.id}")
         return thread
+
+    async def sync_task(self,guild,tid):
+        from .ui import task_view,MENTIONS
+        task=await self.db.task(guild.id,tid)
+        if not task['thread']:raise ValueError('Bind the task thread in Publication Recovery first.')
+        thread=guild.get_thread(task['thread']) or await self.bot.fetch_channel(task['thread'])
+        if thread.guild.id!=guild.id or thread.owner_id!=self.bot.user.id:raise ValueError('Task thread ownership differs.')
+        key=f'task_brief:{tid}'
+        rows=await self.db.query('SELECT value FROM meta_flags WHERE key=?',(key,))
+        binding=json.loads(rows[0]['value']) if rows else {}
+        message=None
+        if binding.get('message'):
+            try:message=await thread.fetch_message(binding['message'])
+            except discord.NotFound:binding={}
+        else:
+            async for candidate in thread.history(limit=100,oldest_first=True):
+                if candidate.author.id!=self.bot.user.id:continue
+                content=candidate.content or ''
+                if content.startswith(f'Task #{tid}:') or any(str(getattr(c,'content','')).startswith(f'## Task #{tid} ·') for c in discord.ui.LayoutView.from_message(candidate).walk_children()):
+                    message=candidate;break
+            if not message and binding.get('state')=='sending':raise ValueError('An uncertain task brief needs message binding recovery.')
+        cfg,_=await self.db.config(guild.id);view=task_view(self.bot,task,cfg)
+        if message and message.author.id!=self.bot.user.id:raise ValueError('Task brief belongs to another application.')
+        archived=getattr(thread,'archived',False) is True
+        if archived:await thread.edit(archived=False)
+        try:
+            if message:await message.edit(content=None,embeds=[],view=view,attachments=view.files(),allowed_mentions=MENTIONS)
+            else:
+                await self.db.execute('INSERT OR REPLACE INTO meta_flags VALUES(?,?)',(key,canonical({'state':'sending'})))
+                message=await thread.send(view=view,files=view.files(),allowed_mentions=MENTIONS)
+            await self.db.execute('INSERT OR REPLACE INTO meta_flags VALUES(?,?)',(key,canonical({'state':'active','message':message.id})))
+            await thread.edit(name=f"Task {tid} · {task['title']}"[:100])
+        finally:
+            if archived or task['status']=='closed':await thread.edit(archived=True,locked=task['status']=='closed')
+
+    async def refresh_panel(self,guild):
+        from .ui import gateway,MENTIONS
+        cfg,_=await self.db.config(guild.id)
+        if not cfg['panel_message']:return
+        message=await guild.get_channel(cfg['panel_channel']).fetch_message(cfg['panel_message'])
+        if message.author.id!=self.bot.user.id:raise ValueError('Panel ownership differs.')
+        view=gateway(self.bot,cfg)
+        await message.edit(view=view,attachments=view.files(),allowed_mentions=MENTIONS)
 
     async def publish_raffle(self,guild,rid,actor):
         from .ui import raffle_view
@@ -121,7 +214,7 @@ class Service:
         channel=guild.get_channel(r['channel'])
         # The saved publishing state disables buying; the worker enables it only
         # after the message ID is durably bound.
-        msg=await channel.send(view=raffle_view(self.bot,r),allowed_mentions=discord.AllowedMentions.none())
+        msg=await channel.send(view=raffle_view(self.bot,r,cfg),allowed_mentions=discord.AllowedMentions.none())
         await self.db.bind_raffle(guild.id,rid,msg.id)
         await self.bot.registry.record(guild.id,msg.id,'message',f"raffle:{rid}")
         return msg
@@ -151,9 +244,10 @@ class Service:
         from .ui import raffle_view
         channel=guild.get_channel(r['channel'])
         if not channel or not r['message']:raise ValueError("Raffle message requires administrator binding recovery.")
+        cfg,_=await self.db.config(guild.id)
         msg=await channel.fetch_message(r['message'])
         if msg.author.id!=self.bot.user.id:raise ValueError("Refusing to edit another bot's message.")
-        await msg.edit(view=raffle_view(self.bot,r),allowed_mentions=discord.AllowedMentions.none())
+        await msg.edit(view=raffle_view(self.bot,r,cfg),allowed_mentions=discord.AllowedMentions.none())
         # Update the original public post, so uncertain delivery never creates duplicates.
         await self.db.execute("UPDATE raffles SET announcement_state='done',error='' WHERE id=?",(r['id'],))
 
@@ -161,8 +255,29 @@ class Service:
         guild=self.bot.get_guild(job['guild'])
         if not guild:raise ValueError("Server is unavailable.")
         p=job['payload']
-        if job['kind']=='role':await self.role_job(guild,p['user'])
+        if job['kind']=='redirect':
+            from .ui import Screen,MENTIONS
+            channel=guild.get_channel(p['channel'])
+            try:msg=await channel.fetch_message(p['message'])
+            except discord.NotFound:
+                await self.db.execute('DELETE FROM meta_flags WHERE key=?',(p['key'],));return
+            if msg.author.id!=self.bot.user.id:raise ValueError('Previous message ownership differs.')
+            view=Screen(self.bot,'Ripper Zone · Moved','This public panel has moved. Open its new location below.')
+            view.box.add_item(discord.ui.ActionRow(discord.ui.Button(label='Open New Location',url=p['url'])))
+            await msg.edit(content=None,embeds=[],view=view,attachments=[],allowed_mentions=MENTIONS)
+            await self.db.execute('DELETE FROM meta_flags WHERE key=?',(p['key'],))
+        elif job['kind']=='reaction':
+            from types import SimpleNamespace
+            await self.bot.process_reaction(SimpleNamespace(**p),p['rule'])
+        elif job['kind']=='leaderboard_refresh':await self.bot.refresh_leaderboard(guild)
+        elif job['kind']=='raffle_refresh':await self.update_raffle(guild,await self.db.raffle(guild.id,p['raffle']))
+        elif job['kind']=='task_sync':await self.sync_task(guild,p['task'])
+        elif job['kind']=='panel_refresh':await self.refresh_panel(guild)
+        elif job['kind']=='role':await self.role_job(guild,p['user'])
         elif job['kind']=='notice':
+            if job['key'].startswith(('taskbrief:','taskbrief-recovered:')):
+                task=await self.db.task_for_thread(guild.id,p['channel'])
+                if task:return await self.sync_task(guild,task['id'])
             channel=guild.get_channel_or_thread(p['channel']) or await self.bot.fetch_channel(p['channel'])
             # Log sends are best-effort with durable retries. Duplicate audit lines after
             # a network timeout are harmless; they never apply financial changes.
@@ -171,6 +286,7 @@ class Service:
             task=await self.db.task(guild.id,p['task'])
             if task['thread']:
                 thread=guild.get_thread(task['thread']) or await self.bot.fetch_channel(task['thread'])
+                await self.sync_task(guild,task['id'])
                 await thread.edit(locked=True,archived=True,reason="Ripper Zone task deadline reached")
         else:raise ValueError("Unknown background job.")
 

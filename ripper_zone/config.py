@@ -3,6 +3,8 @@ import copy
 import hashlib
 import json
 import re
+import unicodedata
+from .copy import COPY,validate_copy
 
 
 def canonical(value):
@@ -35,13 +37,21 @@ def clean(value, limit=1000):
 
 
 DEFAULTS = {
-    "active": False, "member_role": 0, "manager_roles": [], "primary_users": [],
+    "messages": COPY, "support_channel": 0, "active": False, "member_role": 0, "manager_roles": [], "primary_users": [],
     "panel_channel": 0, "tasks_channel": 0, "leaderboard_channel": 0,
     "raffle_channel": 0, "log_channel": 0, "panel_message": 0, "leaderboard_message": 0,
     "panel_state": "new", "spin_enabled": True, "spin_role": 0,
-    "roles_enabled": False, "tiers": [],
+    "roles_enabled": False, "tiers": [], "reactions_enabled": True,
+    "panel_title": "Ripper Zone",
+    "welcome_text": "Your community, your progress.\nEarn Ripper Credits through tasks, events and a free daily spin. Spend RC on public raffles.\nOpen your private panel to get started.",
+    "about_text": "Ripper Credits recognize your contributions to the Rip Cars community.",
+    "support_text": "For help with a reward or prize, contact the server moderators through a support ticket.",
+    "task_footer": "Post your contribution in this thread. Moderators review it and award RC with the configured reactions.",
     "reactions": {"✅": {"kind": "base", "amount": 0}, "🏅": {"kind": "quality", "amount": 5}},
 }
+
+
+LEGACY_KEYS=frozenset({'active','member_role','manager_roles','primary_users','panel_channel','tasks_channel','leaderboard_channel','raffle_channel','log_channel','panel_message','leaderboard_message','panel_state','spin_enabled','spin_role','roles_enabled','tiers','reactions'})
 
 
 def settings(data=None):
@@ -51,10 +61,14 @@ def settings(data=None):
         if unknown:
             raise ValueError("Unknown settings: " + ", ".join(sorted(unknown)))
         result.update(copy.deepcopy(data))
-    for key in ("active", "spin_enabled", "roles_enabled"):
+    if not isinstance(result['messages'],dict) or set(result['messages'])!=set(COPY):raise ValueError('Incomplete message catalog.')
+    result['messages']={k:validate_copy(k,v) for k,v in result['messages'].items()}
+    for key in ("active", "spin_enabled", "roles_enabled", "reactions_enabled"):
         if type(result[key]) is not bool:
             raise ValueError(f"{key} must be true or false.")
-    for key in ("member_role", "spin_role", "panel_channel", "tasks_channel", "leaderboard_channel",
+    for key,limit in (("panel_title",80),("welcome_text",1200),("about_text",1200),("support_text",800),("task_footer",500)):
+        result[key]=clean(result[key],limit)
+    for key in ("support_channel", "member_role", "spin_role", "panel_channel", "tasks_channel", "leaderboard_channel",
                 "raffle_channel", "log_channel", "panel_message", "leaderboard_message"):
         if result[key]:
             result[key] = ident(result[key])
@@ -85,11 +99,15 @@ def settings(data=None):
         raise ValueError("Invalid panel state.")
     if not isinstance(result["reactions"], dict) or not 1 <= len(result["reactions"]) <= 5:
         raise ValueError("Configure one to five reward reactions.")
+    keys=[emoji_key(k) for k in result['reactions']]
+    if len(keys)!=len(set(keys)):raise ValueError('The same emoji is configured more than once.')
     for emoji, rule in result["reactions"].items():
-        clean(emoji, 100)
+        validate_emoji(emoji)
         if set(rule) != {"kind", "amount"} or rule["kind"] not in ("base", "quality"):
             raise ValueError("Reaction kind must be base or quality.")
         integer(rule["amount"], 0, 1000)
+        if rule['kind']=='base' and rule['amount']!=0:raise ValueError('Base reactions use the task reward; their amount must be 0.')
+        if rule['kind']=='quality' and rule['amount']==0:raise ValueError("A quality reaction must award at least 1 RC.")
     if result["active"] and any(not result[k] for k in ("panel_channel", "tasks_channel", "leaderboard_channel", "raffle_channel", "log_channel")):
         raise ValueError("Select all five channels before activation.")
     return result
@@ -102,6 +120,19 @@ def emoji_key(emoji):
     text = str(emoji).strip().replace("\ufe0f", "")
     match = re.fullmatch(r"<a?:[^:>]+:([0-9]+)>", text)
     return "custom:" + match[1] if match else text
+
+
+def validate_emoji(value):
+    value=clean(value,100)
+    key=emoji_key(value)
+    if key.startswith('custom:'):
+        ident(key.split(':',1)[1]);return value
+    if re.fullmatch(r'[0-9#*]\ufe0f?\u20e3',value):return value
+    bases=[c for c in value if c not in ('\ufe0f','\u200d') and not 0x1F3FB<=ord(c)<=0x1F3FF]
+    if not bases or any(unicodedata.category(c) not in ('So','Sk') for c in bases):raise ValueError('Paste one Unicode emoji or a custom server emoji.')
+    flag=len(bases)==2 and all(0x1F1E6<=ord(c)<=0x1F1FF for c in bases)
+    if len(bases)>1 and '\u200d' not in value and not flag:raise ValueError('Use one emoji per reaction rule.')
+    return value
 
 
 def raffle_spec(spec):

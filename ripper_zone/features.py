@@ -2,7 +2,7 @@
 import secrets
 from datetime import datetime, timezone
 from fractions import Fraction
-from .config import canonical, clean, ident, integer
+from .config import canonical, clean, digest, ident, integer
 
 SPIN = ((2,3300),(3,2200),(4,1400),(5,900),(6,700),(8,500),(10,400),(15,300),(20,250),(100,50))
 assert sum(w for _,w in SPIN)==10000
@@ -76,6 +76,42 @@ class Features:
         rows=await self.query("SELECT * FROM tasks WHERE guild=? AND thread=?",(ident(guild),ident(thread)))
         return rows[0] if rows else None
 
+    async def edit_task(self,guild,task_id,changes,actor,expected):
+        guild,actor=ident(guild),ident(actor)
+        if not changes or set(changes)-{'title','body','reward','cooldown','ends'}:raise ValueError("Unsupported task edit.")
+        changes=dict(changes)
+        for k,limit in (('title',100),('body',2000)):
+            if k in changes:changes[k]=clean(changes[k],limit)
+        if 'reward' in changes:integer(changes['reward'],1,1000)
+        if 'cooldown' in changes:integer(changes['cooldown'],0,604800)
+        if 'ends' in changes:
+            integer(changes['ends'],0,253402300799)
+            if changes['ends'] and changes['ends']<=self.clock():raise ValueError("Choose a future deadline, or 0 for no deadline.")
+        def edit(c):
+            row=c.execute("SELECT * FROM tasks WHERE guild=? AND id=?",(guild,task_id)).fetchone()
+            if not row or digest(dict(row))!=expected:raise ValueError("This task changed. Reopen it before editing.")
+            if row['status'] not in ('creating','active','closed'):raise ValueError("Recover this task's publication before editing it.")
+            if row['status']=='closed' and set(changes)&{'reward','cooldown','ends'}:raise ValueError('Closed task timing and reward are fixed. Duplicate this task for a new activity.')
+            if 'reward' in changes and changes['reward']!=row['reward']:
+                started=c.execute("SELECT 1 FROM task_messages WHERE task=? LIMIT 1",(task_id,)).fetchone()
+                paid=c.execute("SELECT 1 FROM ledger WHERE guild=? AND source='task' AND ref LIKE ? LIMIT 1",(guild,f"{task_id}:%")).fetchone()
+                if started or paid:raise ValueError("Base reward is fixed after participation starts. Duplicate this task to use a new reward.")
+            fields=','.join(k+'=?' for k in changes)
+            c.execute(f"UPDATE tasks SET {fields} WHERE guild=? AND id=?",(*changes.values(),guild,task_id))
+            self._enqueue(c,f"tasksync:{task_id}",'task_sync',guild,{'task':task_id})
+            self._audit(c,guild,actor,'task_edited',f"{task_id}: "+', '.join(changes))
+        await self.run(edit)
+
+    async def close_task(self,guild,task_id,actor):
+        guild,actor=ident(guild),ident(actor)
+        def close(c):
+            row=c.execute("SELECT * FROM tasks WHERE guild=? AND id=?",(guild,task_id)).fetchone()
+            if not row:raise ValueError("Task not found.")
+            c.execute("UPDATE tasks SET status='closed',ends=CASE WHEN ends=0 OR ends>? THEN ? ELSE ends END WHERE id=?",(int(self.clock()),int(self.clock()),task_id))
+            self._enqueue(c,f"taskclose:{task_id}",'taskclose',guild,{'task':task_id})
+            self._audit(c,guild,actor,'task_closed',str(task_id))
+        await self.run(close)
+
     async def accept_message(self,guild,task_id,user,message,at,bypass=False):
         guild,user,message=ident(guild),ident(user),ident(message)
         def accept(c):
@@ -106,6 +142,10 @@ class Features:
             count=0
             for uid,name in ids.items():
                 key=f"task:{guild}:{ref}:{uid}:base" if kind=='base' else f"quality:{guild}:{operation}:{uid}"
+                old=c.execute("SELECT guild,user,source,kind,ref FROM ledger WHERE key=?",(key,)).fetchone()
+                if old:
+                    if tuple(old)!=(guild,uid,'task',kind,ref):raise ValueError("Task reward operation identity conflict.")
+                    continue
                 count+=self._entry(c,guild,uid,reward,0,reward,'task',kind,ref,f"Task #{task_id} {kind} reward",actor,key,name)
             self._audit(c,guild,actor,'task_reward',f"{ref}; {kind}; {count} members")
             return count

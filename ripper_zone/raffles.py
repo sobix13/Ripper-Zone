@@ -15,7 +15,11 @@ def decode(row):
 
 class Raffles:
     async def raffle(self,guild,rid):
-        return await self.run(lambda c:decode(c.execute("SELECT * FROM raffles WHERE guild=? AND id=?",(ident(guild),rid)).fetchone()))
+        def read(c):
+            r=decode(c.execute('SELECT * FROM raffles WHERE guild=? AND id=?',(ident(guild),rid)).fetchone())
+            r['prizes']=[dict(p) for p in c.execute('SELECT * FROM prizes WHERE raffle=? ORDER BY round,user',(rid,))]
+            return r
+        return await self.run(read)
 
     async def create_raffle(self,guild,actor,spec):
         guild,actor=ident(guild),ident(actor);spec=raffle_spec(spec)
@@ -41,6 +45,16 @@ class Raffles:
             self._audit(c,guild,actor,'raffle_publish',str(rid))
         await self.run(publish)
         return await self.raffle(guild,rid)
+
+    async def edit_raffle(self,guild,rid,spec,actor,expected):
+        spec=raffle_spec(spec)
+        if spec['ends']<=self.clock()+30:raise ValueError('Choose a future deadline.')
+        def edit(c):
+            row=decode(c.execute('SELECT * FROM raffles WHERE guild=? AND id=?',(guild,rid)).fetchone())
+            if row['status']!='draft' or digest(row['spec'])!=expected:raise ValueError('This draft changed. Reopen it before editing.')
+            c.execute('UPDATE raffles SET spec=? WHERE id=?',(canonical(spec),rid))
+            self._audit(c,guild,actor,'raffle_edited',str(rid))
+        await self.run(edit)
 
     async def bind_raffle(self,guild,rid,message):
         if not await self.execute("UPDATE raffles SET message=?,status='open',error='' WHERE guild=? AND id=? AND status='publishing'",(ident(message),guild,rid)):

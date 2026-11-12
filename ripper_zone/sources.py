@@ -55,3 +55,25 @@ def export(path,source,guild,event):
     data={'version':1,'source':source,'guild':guild,'event':str(event),'participants':sorted(ids)}
     data['hash']=digest(data)
     return validate(data,guild)
+
+
+def finalized_events(path,source,guild):
+    if source not in ('rumble','raffle'):raise ValueError('Unknown event source.')
+    path=Path(path).resolve()
+    if not path.is_file():raise ValueError('Event source is not installed at the configured VPS path.')
+    with sqlite3.connect(path.as_uri()+'?mode=ro',uri=True,timeout=5) as c:
+        c.execute('PRAGMA query_only=ON')
+        sql="SELECT id FROM games WHERE guild_id=? AND status='finished' ORDER BY id DESC LIMIT 25" if source=='rumble' else "SELECT id FROM raffles WHERE guild=? AND status='drawn' ORDER BY id DESC LIMIT 25"
+        return [{'id':row[0]} for row in c.execute(sql,(ident(guild),))]
+
+
+def local_event(source,guild,event=None):
+    import os
+    from dotenv import dotenv_values
+    if source not in ('rumble','raffle'):raise ValueError('Choose rumble or raffle.')
+    default='/opt/ripcars-rumble/shared/data/rumble.sqlite3' if source=='rumble' else '/var/lib/ripcars-raffle/raffle.sqlite3'
+    path=os.getenv(('RUMBLE' if source=='rumble' else 'RAFFLE')+'_DATABASE_PATH',default)
+    if source=='raffle' and path==default and Path('/etc/ripcars-raffle.env').is_file():
+        path=dotenv_values('/etc/ripcars-raffle.env').get('DB_PATH',default)
+    if not Path(path).is_absolute():raise ValueError('Configure an absolute source database path on the VPS.')
+    return export(path,source,guild,ident(event)) if event is not None else finalized_events(path,source,guild)
