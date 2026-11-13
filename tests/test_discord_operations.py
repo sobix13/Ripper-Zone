@@ -34,7 +34,7 @@ class Response:
 
 
 def interaction(user=3):
-    i=NS(guild_id=1,guild=NS(id=1),user=NS(id=user),id=1000+user)
+    i=NS(guild_id=1,guild=NS(id=1,members=[],chunked=True),user=NS(id=user),id=1000+user)
     i.response=Response();i.followup=NS(send=AsyncMock())
     i.edit_original_response=AsyncMock()
     return i
@@ -227,7 +227,7 @@ async def test_recovery_fatal_marker_stops_restart_before_budget(db,monkeypatch)
 
 
 def simulated_guild(bot_id=99):
-    guild=NS(id=1,emojis=[],owner_id=2)
+    guild=NS(id=1,emojis=[],owner_id=2,members=[],chunked=True)
     guild.me=NS(id=bot_id,top_role=NS(id=1000),guild_permissions=NS(manage_roles=True))
     guild.default_role=NS(id=1)
     roles={}
