@@ -3,6 +3,7 @@ import io
 import calendar
 import json
 import time
+from asyncio import sleep
 from pathlib import Path
 import discord
 from .config import canonical, clean, ident, settings
@@ -39,13 +40,16 @@ async def defer(i):
 
 
 class Screen(discord.ui.LayoutView):
-    def __init__(self,bot,title,text,art=None,owner=None,persistent=False):
+    def __init__(self,bot,title,text,art=None,owner=None,persistent=False,full_art=False):
         super().__init__(timeout=None if persistent else 600)
         self.bot=bot;self.owner=owner;self.art=art
         self.box=discord.ui.Container(accent_colour=INK)
         self.add_item(self.box)
         heading=discord.ui.TextDisplay(f"## {title[:250]}\n{text[:3650]}")
-        if art:self.box.add_item(discord.ui.Section(heading,accessory=discord.ui.Thumbnail(f"attachment://{art}",description=title)))
+        if art and full_art:
+            self.box.add_item(discord.ui.MediaGallery(discord.MediaGalleryItem(f"attachment://{art}",description=title)))
+            self.box.add_item(heading)
+        elif art:self.box.add_item(discord.ui.Section(heading,accessory=discord.ui.Thumbnail(f"attachment://{art}",description=title)))
         else:self.box.add_item(heading)
         self.box.add_item(discord.ui.Separator())
         if owner is not None:self.box.add_item(discord.ui.TextDisplay('Private panel · expires in 10 minutes. Reopen Open My Panel to continue.'))
@@ -100,13 +104,30 @@ async def member_page(bot,i,page='home',offset=0,since=0):
 
 
 async def spin(bot,i):
-    await defer(i)
+    # A component update preserves this member's existing private message.
+    if not i.response.is_done():await i.response.defer()
     member,cfg=await bot.member_access(i,active=True)
     if cfg['spin_role'] and cfg['spin_role'] not in {r.id for r in member.roles}:raise ValueError("You do not have the configured daily-spin role.")
     result=await bot.db.spin(i.guild_id,i.user.id,member.display_name,i.id)
-    screen=Screen(bot,'Daily Spin Result',phrase(cfg,'spin_result',amount=result['amount'])+'\n'+f"**{result['amount']} RC** "+("added to your balance." if result['created'] else "was already credited for this UTC day.")+f"\nClaim date: {result['day']}\nYour next spin is available after 00:00 UTC.",'jackpot.gif' if result['amount']==100 else 'spin.png',owner=i.user.id)
+    if result['created']:
+        busy=Screen(bot,'Daily RC Spin','Spinning…','spin-decelerating.gif',owner=i.user.id,full_art=True)
+        busy.button('Spinning…',lambda j:spin(bot,j),disabled=True)
+        try:await i.edit_original_response(view=busy,attachments=busy.files(),allowed_mentions=MENTIONS)
+        except (discord.HTTPException,OSError) as exc:bot.report_error(exc)
+        else:await sleep(4)
+    account=await bot.db.account(i.guild_id,i.user.id)
+    reset=calendar.timegm(time.strptime(result['day'],'%Y-%m-%d'))+86400
+    next_spin=f'Next spin: <t:{reset}:R> · 00:00 UTC' if bot.db.clock()<reset else 'Your next daily spin is ready. Open Daily Spin.'
+    text=phrase(cfg,'spin_result',amount=result['amount'])+f"\n**{result['amount']} RC** "+('added to your balance.' if result['created'] else 'was already credited.')+f"\nAvailable balance: **{account['available']} RC**\nClaim date: {result['day']} UTC\n{next_spin}"
+    screen=Screen(bot,'Daily Spin Result',text,'spin-start.png',owner=i.user.id,full_art=True)
+    screen.button('Claim Recorded',lambda j:spin(bot,j),disabled=True)
     screen.button('My RC',lambda j:member_page(bot,j,'balance'))
-    await show(i,screen)
+    screen.button('Daily Spin',lambda j:member_page(bot,j,'spin'))
+    screen.button('Home',lambda j:member_page(bot,j,'home'))
+    try:await i.edit_original_response(view=screen,attachments=screen.files(),allowed_mentions=MENTIONS)
+    except (discord.HTTPException,OSError) as exc:
+        bot.report_error(exc)
+        await reply(i,content=text)
 
 
 def raffle_view(bot,r,cfg=None):

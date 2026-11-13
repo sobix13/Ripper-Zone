@@ -40,8 +40,8 @@ async def page_view(bot,i,page='home',offset=0,since=0,period='all',selected=0):
         title='My Ripper Credits';art='balance.png'
         text=f"**{a['available']} RC available**\n{a['reserved']} RC reserved for raffle tickets\n{a['earned']} RC lifetime earned · Rank: {rank}\n\nSpending does not reduce earned RC or achievement progress."
     elif page=='spin':
-        title='Daily RC Spin';claim=await bot.db.spin_today(i.guild_id,i.user.id);art='waiting.webp' if claim else 'spin.png'
-        text=(f"Today you received **{claim['amount']} RC**." if claim else 'Press Spin · Free to receive your daily RC.')+f"\nReset: <t:{(int(time.time())//86400+1)*86400}:R> · 00:00 UTC\n\n"+' · '.join(f'{amount} RC: {weight/100:g}%' for amount,weight in SPIN)+'\n\nLong-run average: 5 RC. Each spin is independent.'
+        title='Daily RC Spin';claim=await bot.db.spin_today(i.guild_id,i.user.id);art='spin-start.png'
+        text=(phrase(cfg,'spin_result',amount=claim['amount']) if claim else 'Press Spin · Free to receive your daily RC.')+f"\nAvailable balance: **{a['available']} RC**\nReset: <t:{(int(bot.db.clock())//86400+1)*86400}:R> · 00:00 UTC\n\n"+' · '.join(f'{amount} RC: {weight/100:g}%' for amount,weight in SPIN)+'\n\nLong-run average: 5 RC. Each spin is independent. The wheel symbols are decorative; your reward is shown as text.'
         if not cfg['active'] or not cfg['spin_enabled']:text+='\n'+phrase(cfg,'spin_paused')
         if cfg['spin_role'] and cfg['spin_role'] not in {r.id for r in member.roles}:text+=f"\nDaily spin also requires <@&{cfg['spin_role']}>."
     elif page=='leaders':
@@ -103,7 +103,7 @@ async def page_view(bot,i,page='home',offset=0,since=0,period='all',selected=0):
     key={'leaders':'leaderboard_intro','progress':'progress_intro'}.get(page)
     if key:text=phrase(cfg,key)+'\n\n'+text
     if page=='spin':text=phrase(cfg,'spin_claimed',day=claim['day'])+'\n'+text if claim else phrase(cfg,'spin_ready')+'\n'+text
-    s=ui.Screen(bot,title,text,art,owner=i.user.id)
+    s=ui.Screen(bot,title,text,art,owner=i.user.id,full_art=page=='spin')
     if page=='home':
         principal=i.user.id in (set(getattr(bot,'owners',()))|set(cfg['primary_users'])|{getattr(i.guild,'owner_id',0)}) or bool(set(cfg['manager_roles'])&{r.id for r in member.roles})
         if principal:s.button('Administration',lambda j:ui.admin_page(bot,j))
