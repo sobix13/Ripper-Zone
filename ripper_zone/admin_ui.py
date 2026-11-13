@@ -6,8 +6,9 @@ import time
 from pathlib import Path
 import discord
 from . import ui,sources
-from .config import canonical,clean,digest,emoji_key,ident,integer,settings,validate_emoji
+from .config import canonical,clean,digest,emoji_key,ident,integer,settings,validate_emoji,display_emoji
 from .features import cycle
+from .durations import parse_duration,duration_input,format_duration
 from .copy import COPY,FIELDS,phrase,validate_copy
 
 async def guard(bot,i,primary=False):
@@ -42,7 +43,7 @@ async def home(bot,i):
 async def settings_page(bot,i):
     await guard(bot,i,True);cfg,rev=await bot.db.config(i.guild_id)
     text=f"Revision {rev}\nProgram: {cfg['active']} · Daily spin: {cfg['spin_enabled']} · Achievement roles: {cfg['roles_enabled']}\n"
-    text+='\n'.join(f"{key.replace('_',' ').title()}: <#{cfg[key]}>" for key in ('panel_channel','tasks_channel','leaderboard_channel','raffle_channel','log_channel'))
+    text+='\n'.join(f"{dict(log_channel='Public RC Activity',audit_channel='Private Operations').get(key,key.replace('_',' ').title())}: <#{cfg[key]}>" for key in ('panel_channel','tasks_channel','leaderboard_channel','raffle_channel','log_channel','audit_channel'))
     text+=f"\nAccess role: <@&{cfg['member_role']}>\nModerator roles: "+', '.join(f'<@&{x}>' for x in cfg['manager_roles'])
     s=screen(bot,i,'Settings',text)
     for label,fn in [('Channels and Access',channels),('Reward Reactions',reactions),('Messages and Branding',messages),('Achievement Roles',tiers),('Program Controls',controls),('Settings History',history)]:s.button(label,lambda j,a=fn:a(bot,j))
@@ -55,7 +56,7 @@ async def settings_page(bot,i):
 
 async def channels(bot,i,field=None):
     await guard(bot,i,True);cfg,rev=await bot.db.config(i.guild_id)
-    fields=dict(ui.Setup.STEPS);fields.update(support_channel='Crew support / ticket channel',spin_role='Extra daily spin role',primary_users='Primary administrators')
+    fields=dict(ui.Setup.STEPS);fields.update(audit_channel='Private operations channel (optional)',support_channel='Crew support / ticket channel',spin_role='Extra daily spin role',primary_users='Primary administrators')
     s=screen(bot,i,'Channels and Access','Choose one setting. Existing public message bindings must be recovered or moved explicitly before changing their channel. Access-role changes also reconcile achievement roles.')
     if field is None:
         s.select(discord.ui.Select(placeholder='Choose a setting',options=[discord.SelectOption(label=v,value=k) for k,v in fields.items()]),lambda j,v:channels(bot,j,v[0]))
@@ -64,7 +65,7 @@ async def channels(bot,i,field=None):
             await guard(bot,j,True)
             ids=[x.id for x in values];cfg[field]=ids if field in ('manager_roles','primary_users') else ids[0] if ids else 0
             await bot.service.configure(j.guild,cfg,rev,j.user.id);await finish(bot,j,'Saved',fields[field]+' updated.')
-        if 'channel' in field:item=discord.ui.ChannelSelect(placeholder=fields[field],channel_types=[discord.ChannelType.text])
+        if 'channel' in field:item=discord.ui.ChannelSelect(placeholder=fields[field],channel_types=[discord.ChannelType.text],min_values=0 if field in ('audit_channel','support_channel') else 1)
         elif field=='primary_users':item=discord.ui.UserSelect(placeholder=fields[field],min_values=0,max_values=25)
         else:item=discord.ui.RoleSelect(placeholder=fields[field],min_values=0,max_values=25 if field=='manager_roles' else 1)
         s.select(item,save)
@@ -80,38 +81,42 @@ async def controls(bot,i):
         s.button(f"{label}: {'ON' if cfg[key] else 'OFF'}",toggle)
     s.button('Settings',lambda j:settings_page(bot,j));await ui.show(i,s)
 
-async def reactions(bot,i,key=None):
+async def reactions(bot,i,key=None,offset=0):
     await guard(bot,i,True);cfg,rev=await bot.db.config(i.guild_id)
-    rules={emoji_key(k):v for k,v in cfg['reactions'].items()}
-    text='\n'.join(f"{k}: "+('task base RC, once per member per cycle' if v['kind']=='base' else f"{v['amount']} RC quality bonus per message") for k,v in rules.items())
-    s=screen(bot,i,'Reward Reactions',text+'\n\nNew settings affect future reaction events. Existing payments keep their original value. Another moderator reviews your own posts.')
-    async def form(j,kind,old=None):
+    rules={emoji_key(k):v for k,v in cfg['reactions'].items()};items=list(rules.items())[offset:offset+20]
+    text='\n'.join(f"{display_emoji(k)} · {v['amount']} RC" for k,v in items)
+    s=screen(bot,i,'Reaction Rewards',text+f'\n\nPage {offset//20+1} of {(len(rules)+19)//20} · {len(rules)} configured emojis (up to 100).\nWorks on human messages in all accessible server chats and threads. Only authorized moderators award RC. Each emoji pays once per message, regardless of moderator or re-adds. Task participation rewards are separate.')
+    async def form(j,old=None):
         async def save(k,v):
             await bot.authorize(k,primary=True);emoji=emoji_key(validate_emoji(v['emoji']))
             parsed=discord.PartialEmoji.from_str(v['emoji'])
             if parsed.id and not any(e.id==parsed.id for e in k.guild.emojis):raise ValueError('Select an emoji from this server.')
-            if not parsed.id and (emoji.isascii() or any(c.isspace() for c in emoji)):raise ValueError('Paste one Unicode emoji or a custom server emoji.')
             if emoji in rules and emoji!=old:raise ValueError('This emoji already has a rule.')
             new=dict(rules)
             if old:new.pop(old)
-            new[emoji]={'kind':kind,'amount':integer(int(v.get('amount','0')),1,1000) if kind=='quality' else 0}
+            new[emoji]={'kind':'fixed','amount':integer(int(v['amount']),1,1000)}
             cfg['reactions']=new;await bot.service.configure(k.guild,cfg,rev,k.user.id)
-            await finish(bot,k,'Reaction Saved',f'{emoji}: '+('task base reward' if kind=='base' else f"{new[emoji]['amount']} RC quality bonus"))
-        fields=[('emoji','Paste emoji',(str(next((e for e in j.guild.emojis if old=='custom:'+str(e.id)),old)) if old else ''))]
-        if kind=='quality':fields.append(('amount','Quality bonus RC',rules.get(old,{}).get('amount',5)))
-        await j.response.send_modal(ui.Form(bot,'Edit Reward Reaction',j.user.id,fields,save))
+            await finish(bot,k,'Reaction Saved',f"{display_emoji(emoji)} · {new[emoji]['amount']} RC per message.")
+        previous=str(next((e for e in j.guild.emojis if old=='custom:'+str(e.id)),old)) if old else ''
+        await j.response.send_modal(ui.Form(bot,'Reaction Reward',j.user.id,[('emoji','Emoji',previous),('amount','RC amount (1–1000)',rules.get(old,{}).get('amount',5))],save))
     async def toggle(j):
         await guard(bot,j,True);cfg['reactions_enabled']=not cfg['reactions_enabled']
-        await bot.service.configure(j.guild,cfg,rev,j.user.id);await finish(bot,j,'Reactions Updated',f"New reaction events: {'ON' if cfg['reactions_enabled'] else 'OFF'}. Existing queued events retain their original rules.")
+        await bot.service.configure(j.guild,cfg,rev,j.user.id);await finish(bot,j,'Reactions Updated',f"New rewards: {'ON' if cfg['reactions_enabled'] else 'OFF'}. Already queued reviews retain their original rules.")
     s.button('Reactions: '+('ON' if cfg['reactions_enabled'] else 'OFF'),toggle)
-    s.button('Add Base Reaction',lambda j:form(j,'base'));s.button('Add Quality Reaction',lambda j:form(j,'quality'))
-    s.select(discord.ui.Select(placeholder='Edit or remove a reaction',options=[discord.SelectOption(label=k,value=k) for k in rules]),lambda j,v:reactions(bot,j,v[0]))
+    s.button('Add Reaction',lambda j:form(j))
+    options=[]
+    for emoji,rule in items:
+        custom=next((e for e in i.guild.emojis if emoji=='custom:'+str(e.id)),None)
+        options.append(discord.SelectOption(label=f"{custom.name if custom else emoji} · {rule['amount']} RC",value=emoji,emoji=custom or (discord.PartialEmoji(name='reward',id=int(emoji[7:])) if emoji.startswith('custom:') else emoji)))
+    s.select(discord.ui.Select(placeholder='Choose a reaction',options=options),lambda j,v:reactions(bot,j,v[0],offset))
     if key in rules:
-        s.button('Edit Selected',lambda j:form(j,rules[key]['kind'],key))
+        s.button('Edit Selected',lambda j:form(j,key))
         async def remove(j):
             await guard(bot,j,True);new=dict(rules);new.pop(key);cfg['reactions']=new
-            await bot.service.configure(j.guild,cfg,rev,j.user.id);await finish(bot,j,'Reaction Removed',key)
+            await bot.service.configure(j.guild,cfg,rev,j.user.id);await finish(bot,j,'Reaction Removed',display_emoji(key))
         s.button('Remove Selected',remove,discord.ButtonStyle.danger)
+    s.button('Previous',lambda j:reactions(bot,j,offset=max(0,offset-20)),disabled=not offset)
+    s.button('Next',lambda j:reactions(bot,j,offset=offset+20),disabled=offset+20>=len(rules))
     s.button('Settings',lambda j:settings_page(bot,j));await ui.show(i,s)
 
 async def messages(bot,i):
@@ -176,10 +181,10 @@ async def task_create(bot,i,template=None):
     await guard(bot,i);s=screen(bot,i,'New Community Task','Choose recurrence. Daily cycles reset at UTC midnight. Weekly cycles start from the creation date at UTC midnight.')
     async def choose(j,period):
         async def submit(k,v):
-            await bot.authorize(k);hours=integer(int(v['hours']),0,2160)
-            tid=await bot.db.create_task(k.guild_id,k.user.id,v['title'],v['body'],int(v['reward']),period,int(v['cooldown']),int(time.time())+hours*3600 if hours else 0)
+            await bot.authorize(k);duration=parse_duration(v['duration'],allow_none=True)
+            tid=await bot.db.create_task(k.guild_id,k.user.id,v['title'],v['body'],int(v['reward']),period,parse_duration(v['cooldown'],allow_none=True),int(time.time())+duration if duration else 0)
             await bot.service.publish_task(k.guild,tid);await task_detail(bot,k,tid)
-        t=template or {};fields=[('title','Task title',t.get('title','')),('body','Instructions',t.get('body','')),('reward','Base RC per member per cycle',t.get('reward',5)),('cooldown','Post cooldown in seconds (0 = none)',t.get('cooldown',0)),('hours','Duration in hours (0 = no deadline)',72)]
+        t=template or {};fields=[('title','Task title',t.get('title','')),('body','Instructions',t.get('body','')),('reward','Base RC per member per cycle',t.get('reward',5)),('cooldown','Cooldown: 30m or none (max 90d)',duration_input(t.get('cooldown',0))),('duration','Open for: 2d or none (max 90d)','3d')]
         await j.response.send_modal(ui.Form(bot,'New Community Task',j.user.id,fields,submit))
     for label,p in [('One-time',0),('Daily',86400),('Weekly',604800)]:s.button(label,lambda j,p=p:choose(j,p))
     s.button('Tasks',lambda j:tasks(bot,j));await ui.show(i,s)
@@ -187,18 +192,18 @@ async def task_create(bot,i,template=None):
 async def task_detail(bot,i,tid):
     await guard(bot,i);t=await bot.db.task(i.guild_id,tid);cy=cycle(t,min(int(time.time()),t['ends'] or int(time.time())))
     stats=(await bot.db.query('SELECT COUNT(*) posts,COUNT(DISTINCT user) people FROM task_messages WHERE task=? AND cycle=?',(tid,cy)))[0]
-    text=f"{ui.escape(t['title'])}\n{ui.escape(t['body'])[:1800]}\nStatus: {t['status']} · Thread: <#{t['thread']}>\nBase: {t['reward']} RC · Cycle {cy} · Cooldown: {t['cooldown']} seconds\nDeadline: "+(f"<t:{t['ends']}:F>" if t['ends'] else 'none')+f"\nRecorded posts: {stats['posts']} · Contributors: {stats['people']}\nRecorded presence does not mean individual content approval. Review recipients before paying a cycle snapshot."
+    text=f"{ui.escape(t['title'])}\n{ui.escape(t['body'])[:1800]}\nStatus: {t['status']} · Thread: <#{t['thread']}>\nBase: {t['reward']} RC · Cycle {cy} · Cooldown: {format_duration(t['cooldown'])}\nDeadline: "+(f"<t:{t['ends']}:F>" if t['ends'] else 'none')+f"\nRecorded posts: {stats['posts']} · Contributors: {stats['people']}\nRecorded presence does not mean individual content approval. Review recipients before paying a cycle snapshot."
     s=screen(bot,i,f'Task #{tid}',text,'tasks.png')
     async def edit(j,timing=False):
         async def save(k,v):
-            await bot.authorize(k);changes={key:int(value) if key in ('reward','cooldown','ends') else value for key,value in v.items()}
+            await bot.authorize(k);changes={key:parse_duration(value,allow_none=True) if key=='cooldown' else int(value) if key=='reward' else value for key,value in v.items()}
             await bot.db.edit_task(k.guild_id,tid,changes,k.user.id,digest(t));await finish(bot,k,'Task Saved','Refreshing the original brief is queued.')
-        fields=[('reward','Base RC (fixed after participation)',t['reward']),('cooldown','Cooldown seconds',t['cooldown'])] if timing else [('title','Title',t['title']),('body','Instructions',t['body'])]
+        fields=[('reward','Base RC (fixed after participation)',t['reward']),('cooldown','Cooldown: 30m or none (max 90d)',duration_input(t['cooldown']))] if timing else [('title','Title',t['title']),('body','Instructions',t['body'])]
         await j.response.send_modal(ui.Form(bot,'Edit Task',j.user.id,fields,save))
     s.button('Set Deadline',lambda j:deadline_form(bot,j,t))
     s.button('Edit Details',edit);s.button('Timing and Reward',lambda j:edit(j,True));s.button('Duplicate',lambda j:task_create(bot,j,t))
     s.button('Participants',lambda j:picker(bot,j,'Task Contributors','SELECT DISTINCT user id FROM task_messages WHERE task=? AND cycle=? ORDER BY user',(tid,cy),lambda k,u:member_account(bot,k,u)))
-    s.button('Extra Quality RC',lambda j:review_member(bot,j,tid,cy,quality=True))
+    s.button('Extra RC Bonus',lambda j:review_member(bot,j,tid,cy,quality=True))
     s.button('Cycle Snapshot',lambda j:task_snapshot_form(bot,j,tid,cy));s.button('Reviewed Contribution',lambda j:review_member(bot,j,tid,cy))
     s.button('Reset Member Cooldown',lambda j:select_member(bot,j,'Reset Member Cooldown',lambda k,ids:invoke(bot,k,'task_manage',action='reset_cooldown',task_id=tid,value=ids[0]),1))
     s.button('Recover Reactions',lambda j:reconcile_reactions(bot,j,tid));s.button('Refresh Brief',lambda j:refresh_task(bot,j,tid))
@@ -215,7 +220,7 @@ async def refresh_task(bot,i,tid):
 
 async def task_snapshot_form(bot,i,tid,cy,offset=0):
     await guard(bot,i);t=await bot.db.task(i.guild_id,tid)
-    s=screen(bot,i,'Choose Task Cycle','Choose a recorded reward period. Base rewards are shared with reactions and individual reviews.')
+    s=screen(bot,i,'Choose Task Cycle','Choose a recorded reward period. Task participation rewards are shared with individual reviews. Fixed reaction rewards are separate.')
     options=[discord.SelectOption(label=f'Cycle {n}'+(' · current / final' if n==cy else ''),value=str(n)) for n in range(cy-offset,max(-1,cy-offset-25),-1)]
     async def selected(j,v):
         await invoke(bot,j,'task_snapshot',task_id=tid,cycle_id=int(v[0]),kind='base',quality_amount=5)
@@ -233,8 +238,8 @@ async def review_member(bot,i,tid,cy,quality=False):
     async def selected(j,ids):
         async def submit(k,v):
             await invoke(bot,k,'task_reward',task_id=tid,cycle_id=int(v['cycle']),member=discord.Object(ids[0]),kind='quality' if quality else 'base',quality_amount=int(v.get('amount',5)),reason=v['reason'])
-        await j.response.send_modal(ui.Form(bot,'Reviewed Contribution',j.user.id,[('cycle','Reviewed cycle',cy),('reason','Review reason','Extra quality bonus' if quality else 'Reviewed task contribution')]+([('amount','Extra quality RC',5)] if quality else []),submit))
-    await select_member(bot,i,'Reviewed Task Contribution',selected,1)
+        await j.response.send_modal(ui.Form(bot,'Reviewed Contribution',j.user.id,[('cycle','Reviewed cycle',cy),('reason','Review reason','Extra extra RC bonus' if quality else 'Reviewed task contribution')]+([('amount','Extra quality RC',5)] if quality else []),submit))
+    await select_member(bot,i,'Review Task Contribution',selected,1)
 
 async def reconcile_reactions(bot,i,tid,hours=None):
     if hours is None:
@@ -254,7 +259,7 @@ async def reconcile_reactions(bot,i,tid,hours=None):
                     if observed and (user.id in (set(bot.owners)|set(cfg['primary_users'])|{i.guild.owner_id}) or set(cfg['manager_roles'])&{r.id for r in observed.roles}):
                         from types import SimpleNamespace
                         await bot.on_raw_reaction_add(SimpleNamespace(guild_id=i.guild_id,channel_id=thread.id,message_id=msg.id,user_id=user.id,emoji=reaction.emoji));queued+=1
-    await finish(bot,i,'Reaction Recovery Queued',f'Examined {examined} messages from the last {hours} hours (limit 200). Queued {queued} moderator reactions. Existing base and quality awards are not paid again. Posts missed during downtime need Reviewed Contribution first.')
+    await finish(bot,i,'Reaction Recovery Queued',f'Examined {examined} messages from the last {hours} hours (limit 200). Queued {queued} moderator reactions. Existing reaction rewards are not paid again. Task participation reviews remain separate.')
 
 async def members(bot,i):
     await guard(bot,i);s=screen(bot,i,'RC and Members','Choose members to award RC, inspect their account or review a recorded reward.')
@@ -373,6 +378,7 @@ async def health(bot,i):
     from .operations import doctor
     data=await doctor(bot)
     text=f"Version: {data['version']} · Ready: {data['ready']}\nSQLite: {', '.join(data['database_check'])}\nLedger mismatches: {len(data['ledger_mismatches'])} · Failed jobs: {len(data['failed_jobs'])}\nPanel: {data['panel_state']}\n"+'\n'.join(data['permission_issues'])+'\n'+'\n'.join(f"{k}: {v}" for k,v in data['worker_issues'].items())
+    text+=f"\nPublic RC channel: <#{data['public_rc_channel']}>\nRC receipts: "+', '.join(f'{state}: {count}' for state,count in data['receipt_delivery'].items())
     text+='\nFailed jobs:\n'+'\n'.join(f"{r['key']}: {r['error'][:100]}" for r in data['failed_jobs'][:8])
     text+='\nPending task publications: '+', '.join(str(r['id']) for r in data['task_publication_review'])
     text+='\nPending raffle publications: '+', '.join(str(r['id']) for r in data['raffle_publication_review'])
@@ -381,6 +387,11 @@ async def health(bot,i):
     s=screen(bot,i,'Health and Recovery',text)
     s.button('Check Rumble Connection',lambda j:event_list(bot,j,'rumble'));s.button('Check Raffle Connection',lambda j:event_list(bot,j,'raffle'))
     s.button('Download Details',lambda j:bot.doctor_action(j))
+    async def retry_receipts(j):
+        await guard(bot,j,True)
+        count=await bot.db.execute("UPDATE jobs SET state='pending',attempts=0,next_at=0,error='' WHERE guild=? AND kind='notice' AND key LIKE 'notice:%' AND state='failed'",(j.guild_id,))
+        await finish(bot,j,'RC Receipts Retried',f'{count} failed receipts queued. No RC awards were repeated.')
+    s.button('Retry RC Receipts',retry_receipts)
     for action,label in [('retry_jobs','Retry Failed Jobs'),('clear_accounting_pause','Verify and Resume Accounting'),('restart','Bounded Restart'),('mark_panel_missing','Verify Deleted Panel')]:
         s.button(label,lambda j,a=action:confirm(bot,j,'Confirm Recovery',a.replace('_',' '),lambda k:invoke(bot,k,'recovery',action=a),True))
     async def backup(j):
@@ -411,6 +422,7 @@ async def file_modal(bot,i,title,callback):await i.response.send_modal(Upload(bo
 async def snapshots(bot,i):
     await guard(bot,i);s=screen(bot,i,'Participation Snapshots','Choose a source. Preview recipients and the total before confirmation. Repeated finalized event imports never pay twice.')
     s.button('Rumble Event',lambda j:event_list(bot,j,'rumble'));s.button('Ordinary Raffle Event',lambda j:event_list(bot,j,'raffle'))
+    s.button('Voice / Stage Call',lambda j:voice_snapshot(bot,j))
     s.button('Task Cycle',lambda j:tasks(bot,j));s.button('Channel / Thread Window',lambda j:window_snapshot(bot,j));s.button('Message Reactions',lambda j:reaction_snapshot(bot,j))
     s.button('Administration',lambda j:home(bot,j));await ui.show(i,s)
 
@@ -525,10 +537,14 @@ async def deadline_form(bot,i,task):
     old=datetime.datetime.fromtimestamp(task['ends'],datetime.timezone.utc).strftime('%Y-%m-%d %H:%M') if task['ends'] else 'none'
     async def submit(j,v):
         await bot.authorize(j)
-        try:ends=0 if v['deadline'].lower()=='none' else int(datetime.datetime.strptime(v['deadline'],'%Y-%m-%d %H:%M').replace(tzinfo=datetime.timezone.utc).timestamp())
-        except ValueError:raise ValueError('Use YYYY-MM-DD HH:MM in UTC, or none.')
+        try:
+            value=v['deadline'].strip()
+            if value.lower()=='none':ends=0
+            elif ' ' in value and '-' in value:ends=int(datetime.datetime.strptime(value,'%Y-%m-%d %H:%M').replace(tzinfo=datetime.timezone.utc).timestamp())
+            else:ends=int(time.time())+parse_duration(value)
+        except ValueError:raise ValueError('Use 12s, 12m, 12h, 12d (up to 90d), YYYY-MM-DD HH:MM in UTC, or none.')
         await bot.db.edit_task(j.guild_id,task['id'],{'ends':ends},j.user.id,digest(task));await finish(bot,j,'Deadline Saved','The original task brief will be refreshed.')
-    await i.response.send_modal(ui.Form(bot,'Task Deadline',i.user.id,[('deadline','UTC deadline: YYYY-MM-DD HH:MM or none',old)],submit))
+    await i.response.send_modal(ui.Form(bot,'Task Deadline',i.user.id,[('deadline','Deadline: 2d, UTC date, or none',old)],submit))
 
 async def brief_binding(bot,i,tid):
     async def submit(j,v):
@@ -541,3 +557,46 @@ async def brief_binding(bot,i,tid):
         await bot.db.execute('INSERT OR REPLACE INTO meta_flags VALUES(?,?)',(f'task_brief:{tid}',canonical({'state':'active','message':msg.id})))
         await refresh_task(bot,j,tid)
     await i.response.send_modal(ui.Form(bot,'Recover Task Brief',i.user.id,[('message','Existing task brief message ID','')],submit))
+
+
+async def voice_snapshot(bot,i,channel=None,amount=5):
+    await guard(bot,i);integer(amount,1,1000)
+    channel=channel or getattr(i,'channel',None)
+    if not isinstance(channel,(discord.VoiceChannel,discord.StageChannel)):
+        s=screen(bot,i,'Voice Snapshot','Choose a voice or stage channel. The connected human roster is captured when you select it. Stream watching is not verified.')
+        async def choose(j,values):
+            selected=j.guild.get_channel(values[0].id)
+            await voice_snapshot(bot,j,selected,amount)
+        s.select(discord.ui.ChannelSelect(placeholder='Voice or stage channel',channel_types=[discord.ChannelType.voice,discord.ChannelType.stage_voice]),choose)
+        s.button('Snapshots',lambda j:snapshots(bot,j));return await ui.show(i,s)
+    if not bot.is_ready() or getattr(i.guild,'unavailable',False) is True:raise ValueError('Wait for the bot to finish reconnecting before capturing voice presence.')
+    if channel.guild.id!=i.guild_id or not channel.permissions_for(i.guild.me).view_channel:raise ValueError('The voice channel must be visible to this bot in this server.')
+    ids=tuple(channel.voice_states);people={}
+    if len(ids)>5000:raise ValueError('Voice snapshot exceeds 5000 connected members.')
+    for uid in ids:
+        member=await bot.service.eligible(i.guild,uid)
+        if member:people[uid]=member.display_name
+    capture=await bot.db.voice_capture(i.guild_id,channel.id,i.id,i.user.id,people,amount)
+    await voice_preview(bot,i,capture)
+
+
+async def voice_preview(bot,i,capture,offset=0):
+    await guard(bot,i)
+    people=list(capture['people'].items());amount=capture['amount']
+    text=f"Channel: <#{capture['channel']}> · Captured <t:{capture['at']}:F>\nSnapshot #{capture['id']}\n**{len(people)} connected human members · {amount} RC each · Total {len(people)*amount} RC**\n\n"+'\n'.join(f'<@{uid}>' for uid,_ in people[offset:offset+20])
+    text+=f'\n\nPage {offset//20+1} of {(len(people)+19)//20}. The roster is frozen; later joins and departures do not change it. Bots are excluded. This records call presence, not verified stream watching.'
+    s=screen(bot,i,'Review Voice Snapshot',text)
+    async def pay(j):
+        await guard(bot,j)
+        count=await bot.db.update_voice_capture(j.guild_id,capture['id'],j.user.id,digest(capture))
+        await finish(bot,j,'Voice Rewards Recorded',f'{count} new awards · {amount} RC each. Public RC receipts are queued. Reusing this confirmation never pays twice.')
+    async def edit(j):
+        async def save(k,v):
+            await bot.authorize(k)
+            updated=await bot.db.update_voice_capture(k.guild_id,capture['id'],k.user.id,digest(capture),integer(int(v['amount']),1,1000))
+            await voice_preview(bot,k,updated)
+        await j.response.send_modal(ui.Form(bot,'Voice Snapshot Reward',j.user.id,[('amount','RC per connected member (1–1000)',amount)],save))
+    s.button('Set RC Amount',edit);s.button('Confirm Voice Rewards',pay,discord.ButtonStyle.success)
+    s.button('Previous',lambda j:voice_preview(bot,j,capture,max(0,offset-20)),disabled=not offset)
+    s.button('Next',lambda j:voice_preview(bot,j,capture,offset+20),disabled=offset+20>=len(people))
+    s.button('Cancel',lambda j:snapshots(bot,j));await ui.show(i,s)

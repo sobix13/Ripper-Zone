@@ -26,6 +26,7 @@ async def doctor(bot):
     check=await bot.db.query("PRAGMA quick_check")
     errors=await bot.db.reconcile(bot.guild_id)
     failed=await bot.db.query("SELECT key,attempts,error FROM jobs WHERE guild=? AND state='failed' LIMIT 30",(bot.guild_id,))
+    receipts=await bot.db.query("SELECT state,COUNT(*) count FROM jobs WHERE guild=? AND kind='notice' AND key LIKE 'notice:%' GROUP BY state",(bot.guild_id,))
     blocks=await bot.db.query("SELECT * FROM financial_blocks WHERE guild=?",(bot.guild_id,))
     ambiguity=await bot.db.query("SELECT id,status FROM raffles WHERE guild=? AND status='publishing'",(bot.guild_id,))
     tasks=await bot.db.query("SELECT id,status FROM tasks WHERE guild=? AND status IN ('creating','publishing')",(bot.guild_id,))
@@ -40,6 +41,7 @@ async def doctor(bot):
             'database_check':[list(x.values())[0] for x in check],'ledger_mismatches':errors,'financial_blocks':blocks,
             'settings_revision':rev,'active':cfg['active'],'spin_enabled':cfg['spin_enabled'],'roles_enabled':cfg['roles_enabled'],
             'panel_state':cfg['panel_state'],'failed_jobs':failed,'raffle_publication_review':ambiguity,'task_publication_review':tasks,
+            'receipt_delivery':{r['state']:r['count'] for r in receipts},'public_rc_channel':cfg['log_channel'],'private_operations_channel':cfg['audit_channel'],
             'permission_issues':permissions,'worker_issues':bot.service.issues,'coordination':shared,
             'backup_directory':str(Path(bot.db.path).parent/'backups'),'offsite_backup':'not configured'}
 
@@ -99,8 +101,15 @@ class Recovery:
         if not self.database.exists():return {}
         c=sqlite3.connect(self.database.resolve().as_uri()+'?mode=ro',uri=True,timeout=5)
         try:
-            row=c.execute("SELECT data FROM settings WHERE guild=?",(self.guild,)).fetchone()
-            return json.loads(row[0]) if row else {}
+            row=c.execute("SELECT data,revision FROM settings WHERE guild=?",(self.guild,)).fetchone()
+            cfg=json.loads(row[0]) if row else {}
+            extra=c.execute('SELECT value FROM meta_flags WHERE key=?',(f'settings_extra:{self.guild}',)).fetchone()
+            if extra:cfg.update(json.loads(extra[0]))
+            extension=c.execute('SELECT value FROM meta_flags WHERE key=?',(f'settings_v2:{self.guild}',)).fetchone()
+            if extension:
+                extension=json.loads(extension[0])
+                if row and extension['revision']==row[1]:cfg.update(extension['settings'])
+            return cfg
         finally:c.close()
 
     async def restart(self):
@@ -130,8 +139,9 @@ class Recovery:
 
     async def pulse(self):
         cfg=await asyncio.to_thread(self.config)
-        channel=int(os.environ.get('RECOVERY_CHANNEL_ID','0')) or cfg.get('log_channel',0)
+        channel=int(os.environ.get('RECOVERY_CHANNEL_ID','0')) or cfg.get('audit_channel',0)
         if not channel:return
+        if channel==cfg.get('log_channel'):raise ValueError('Recovery controls require a separate private operations channel.')
         paused=self.budget.data['paused']
         content=f"Ripper Zone recovery · {'PAUSED' if paused else 'monitoring'}\nMain service: {'healthy' if self.last_status.get('ok') else 'needs attention'}\nOwner controls: 🩺 refresh health · 🔄 bounded restart · ⏸️ pause/resume recovery\nLast check: <t:{int(time.time())}:T>\n{self.budget.data.get('last_error','')[:300]}"
         mid=self.budget.data['message']

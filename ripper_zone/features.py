@@ -2,7 +2,9 @@
 import secrets
 from datetime import datetime, timezone
 from fractions import Fraction
-from .config import canonical, clean, digest, ident, integer
+import json
+from .config import canonical, clean, digest, ident, integer,emoji_key,validate_emoji
+from .durations import MAX_TASK_TIME
 
 SPIN = ((2,3300),(3,2200),(4,1400),(5,900),(6,700),(8,500),(10,400),(15,300),(20,250),(100,50))
 assert sum(w for _,w in SPIN)==10000
@@ -23,6 +25,59 @@ def cycle(task, at):
 
 
 class Features:
+    async def reaction_award(self,guild,user,name,actor,message,emoji,amount):
+        guild,user,actor,message=map(ident,(guild,user,actor,message));integer(amount,1,1000)
+        emoji=emoji_key(validate_emoji(emoji))
+        if user==actor:raise ValueError('Another moderator must reward your message.')
+        key=f'reaction:{guild}:{message}:{emoji}:{user}'
+        def pay(c):
+            self._live(c,guild)
+            # Rule edits, a second moderator, and remove/re-add never top up a message.
+            if c.execute('SELECT 1 FROM ledger WHERE key IN (?,?)',(key,f'quality:{guild}:reaction:{message}:{emoji}:{user}')).fetchone():return False
+            legacy=c.execute("""SELECT 1 FROM task_messages m JOIN ledger l
+                ON l.guild=? AND l.user=m.user AND l.source='task' AND l.kind='base' AND l.ref=m.task||':'||m.cycle
+                JOIN jobs j ON j.guild=l.guild AND j.kind='reaction' AND j.state='done'
+                AND json_extract(j.payload,'$.user_id')=l.actor
+                AND json_extract(j.payload,'$.message_id')=m.message
+                AND json_extract(j.payload,'$.emoji')=? AND json_extract(j.payload,'$.rule.kind')='base'
+                WHERE m.message=? AND m.user=? LIMIT 1""",(guild,emoji,message,user)).fetchone()
+            if legacy:return False
+            return self._entry(c,guild,user,amount,0,amount,'reaction','award',str(message),'Reaction '+emoji,actor,key,name)
+        return await self.run(pay)
+
+    async def voice_capture(self,guild,channel,capture,actor,people,amount):
+        guild,channel,capture,actor=map(ident,(guild,channel,capture,actor));integer(amount,1,1000)
+        if not 1<=len(people)<=5000:raise ValueError('A voice snapshot requires 1–5000 human participants.')
+        people={str(ident(u)):str(name)[:128] for u,name in people.items()}
+        data=dict(guild=guild,channel=channel,id=capture,actor=actor,people=people,amount=amount,at=int(self.clock()),paid=False)
+        key=f'voice_capture:{guild}:{capture}'
+        def save(c):
+            self._live(c,guild)
+            c.execute('INSERT OR IGNORE INTO meta_flags VALUES(?,?)',(key,canonical(data)))
+            return json.loads(c.execute('SELECT value FROM meta_flags WHERE key=?',(key,)).fetchone()[0])
+        return await self.run(save)
+
+    async def update_voice_capture(self,guild,capture,actor,expected,amount=None):
+        key=f'voice_capture:{ident(guild)}:{ident(capture)}';actor=ident(actor)
+        if amount is not None:integer(amount,1,1000)
+        def save(c):
+            self._live(c,guild)
+            row=c.execute('SELECT value FROM meta_flags WHERE key=?',(key,)).fetchone()
+            if not row:raise ValueError('Voice snapshot not found.')
+            data=json.loads(row[0])
+            if data['actor']!=actor:raise ValueError('Open your own voice snapshot.')
+            if data['paid'] and amount is None:return 0
+            if data['paid'] or digest(data)!=expected:raise ValueError('This snapshot changed or was already paid. Reopen it.')
+            if amount is not None:data['amount']=amount
+            else:
+                for user,name in data['people'].items():
+                    self._entry(c,guild,int(user),data['amount'],0,data['amount'],'voice','participation',f"{data['channel']}:{capture}",'Voice call participation',actor,f'voice:{guild}:{capture}:{user}',name)
+                data['paid']=True
+                self._audit(c,guild,actor,'voice_snapshot',f"{capture}: {len(data['people'])} participants, {data['amount']} RC each")
+            c.execute('UPDATE meta_flags SET value=? WHERE key=?',(canonical(data),key))
+            return data if amount is not None else len(data['people'])
+        return await self.run(save)
+
     async def spin_today(self,guild,user):
         day=datetime.fromtimestamp(self.clock(),timezone.utc).date().isoformat()
         rows=await self.query("SELECT * FROM spin_claims WHERE guild=? AND user=? AND day=?",(ident(guild),ident(user),day))
@@ -54,7 +109,7 @@ class Features:
 
     async def create_task(self,guild,actor,title,body,reward,period,cooldown,ends=0):
         guild,actor=ident(guild),ident(actor)
-        clean(title,100);clean(body,2000);integer(reward,1,1000);integer(cooldown,0,604800)
+        clean(title,100);clean(body,2000);integer(reward,1,1000);integer(cooldown,0,MAX_TASK_TIME)
         if period not in (0,86400,604800):raise ValueError("Period must be once, daily or weekly.")
         if ends and (type(ends) is not int or ends<=self.clock()):raise ValueError("Task deadline must be in the future.")
         def create(c):
@@ -83,10 +138,10 @@ class Features:
         for k,limit in (('title',100),('body',2000)):
             if k in changes:changes[k]=clean(changes[k],limit)
         if 'reward' in changes:integer(changes['reward'],1,1000)
-        if 'cooldown' in changes:integer(changes['cooldown'],0,604800)
+        if 'cooldown' in changes:integer(changes['cooldown'],0,MAX_TASK_TIME)
         if 'ends' in changes:
             integer(changes['ends'],0,253402300799)
-            if changes['ends'] and changes['ends']<=self.clock():raise ValueError("Choose a future deadline, or 0 for no deadline.")
+            if changes['ends'] and changes['ends']<=self.clock():raise ValueError("Choose a future deadline, or none for no deadline.")
         def edit(c):
             row=c.execute("SELECT * FROM tasks WHERE guild=? AND id=?",(guild,task_id)).fetchone()
             if not row or digest(dict(row))!=expected:raise ValueError("This task changed. Reopen it before editing.")

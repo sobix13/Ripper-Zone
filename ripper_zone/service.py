@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 import discord
 from .config import settings, canonical
-from .copy import phrase
+from .copy import phrase,receipt_text
 
 log=logging.getLogger(__name__)
 
@@ -67,7 +67,7 @@ class Service:
 
     async def validate_config(self,guild,cfg):
         cfg=settings(cfg)
-        for key in ('panel_channel','tasks_channel','leaderboard_channel','raffle_channel','log_channel'):
+        for key in ('panel_channel','tasks_channel','leaderboard_channel','raffle_channel','log_channel','audit_channel'):
             if not cfg[key]:continue
             channel=guild.get_channel(cfg[key])
             if not isinstance(channel,discord.TextChannel):raise ValueError(f"{key} must be a text channel in this server.")
@@ -75,10 +75,10 @@ class Service:
             needed=['view_channel','send_messages','read_message_history','attach_files','embed_links']
             if key=='tasks_channel':needed+=['create_public_threads','send_messages_in_threads','manage_threads','manage_messages','add_reactions']
             if not all(getattr(p,k) for k in needed):raise ValueError(f"Missing permissions in #{channel.name}: "+', '.join(k for k in needed if not getattr(p,k)))
-        if cfg['log_channel'] and cfg['log_channel'] in [cfg[x] for x in ('panel_channel','tasks_channel','leaderboard_channel','raffle_channel')]:
+        if cfg['audit_channel'] and cfg['audit_channel'] in [cfg[x] for x in ('panel_channel','tasks_channel','leaderboard_channel','raffle_channel','log_channel')]:
             raise ValueError("Use a separate private moderator log channel.")
-        if cfg['log_channel']:
-            channel=guild.get_channel(cfg['log_channel'])
+        if cfg['audit_channel']:
+            channel=guild.get_channel(cfg['audit_channel'])
             if channel.permissions_for(guild.default_role).view_channel:
                 raise ValueError("Hide the moderator log channel from @everyone.")
             role=guild.get_role(cfg['member_role']) if cfg['member_role'] else None
@@ -279,8 +279,19 @@ class Service:
             if job['key'].startswith(('taskbrief:','taskbrief-recovered:')):
                 task=await self.db.task_for_thread(guild.id,p['channel'])
                 if task:return await self.sync_task(guild,task['id'])
-            channel=guild.get_channel_or_thread(p['channel']) or await self.bot.fetch_channel(p['channel'])
-            text=p['text']
+            text=p['text'];channel_id=p['channel']
+            if job['key'].startswith('notice:'):
+                cfg,_=await self.db.config(guild.id)
+                rows=await self.db.query('SELECT * FROM ledger WHERE guild=? AND key=?',(guild.id,job['key'][7:]))
+                if not rows:raise ValueError('Receipt ledger entry is missing. Review the queued notice.')
+                if rows:
+                    rendered=receipt_text(rows[0])
+                    if rendered is None:
+                        if not cfg['audit_channel']:return
+                        channel_id=cfg['audit_channel']
+                    else:text=rendered;channel_id=cfg['log_channel']
+                if not channel_id:raise ValueError('Configure the public RC activity channel.')
+            channel=guild.get_channel_or_thread(channel_id) or await self.bot.fetch_channel(channel_id)
             if job['key'].startswith('notice:'):
                 match=re.search(r'<@!?(\d+)>',text)
                 if match:

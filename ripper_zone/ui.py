@@ -10,10 +10,13 @@ from .config import canonical, clean, ident, settings
 from .copy import phrase
 from .features import SPIN
 from .service import tier_for
+from .durations import format_duration
 
 ASSETS=Path(__file__).resolve().parents[1]/'assets'
 INK=0x6C2029
 CREAM=0xD7BD93
+TEAL=0x397D82
+GOLD=0xC89A45
 MENTIONS=discord.AllowedMentions.none()
 
 
@@ -35,15 +38,22 @@ async def failure(i,exc):
     await reply(i,content=str(exc)[:1000] if isinstance(exc,ValueError) else phrase(cfg,'operation_unknown'))
 
 
-async def defer(i):
-    if not i.response.is_done():await i.response.defer(ephemeral=True,thinking=True)
+def private_component(i):
+    message=getattr(i,'message',None)
+    return getattr(i,'type',None)==discord.InteractionType.component and bool(message and message.flags.ephemeral)
+
+
+async def defer(i,*,update=False):
+    if not i.response.is_done():
+        if update and private_component(i):await i.response.defer()
+        else:await i.response.defer(ephemeral=True,thinking=True)
 
 
 class Screen(discord.ui.LayoutView):
-    def __init__(self,bot,title,text,art=None,owner=None,persistent=False,full_art=False):
+    def __init__(self,bot,title,text,art=None,owner=None,persistent=False,full_art=False,accent=INK):
         super().__init__(timeout=None if persistent else 600)
         self.bot=bot;self.owner=owner;self.art=art
-        self.box=discord.ui.Container(accent_colour=INK)
+        self.box=discord.ui.Container(accent_colour=accent)
         self.add_item(self.box)
         heading=discord.ui.TextDisplay(f"## {title[:250]}\n{text[:3650]}")
         if art and full_art:
@@ -52,7 +62,6 @@ class Screen(discord.ui.LayoutView):
         elif art:self.box.add_item(discord.ui.Section(heading,accessory=discord.ui.Thumbnail(f"attachment://{art}",description=title)))
         else:self.box.add_item(heading)
         self.box.add_item(discord.ui.Separator())
-        if owner is not None:self.box.add_item(discord.ui.TextDisplay('Private panel · expires in 10 minutes. Reopen Open My Panel to continue.'))
         self.rows=[]
 
     def button(self,label,action,style=discord.ButtonStyle.secondary,disabled=False,custom_id=None):
@@ -87,13 +96,15 @@ class Screen(discord.ui.LayoutView):
         return self
 
 
-async def show(i,screen):
-    await reply(i,view=screen,files=screen.files())
+async def show(i,screen,*,update=False):
+    if update and private_component(i):
+        await i.edit_original_response(view=screen,attachments=screen.files(),allowed_mentions=MENTIONS)
+    else:await reply(i,view=screen,files=screen.files())
 
 
 def gateway(bot,cfg=None):
     cfg=settings(cfg)
-    screen=Screen(bot,escape(cfg['panel_title']),escape(cfg['welcome_text']),'welcome.webp',persistent=True)
+    screen=Screen(bot,escape(cfg['panel_title']),escape(cfg['welcome_text']),'welcome-banner.webp',persistent=True,full_art=True)
     screen.button('Open My Panel',lambda i:member_page(bot,i,'home'),discord.ButtonStyle.primary,custom_id='rz:panel:v1')
     return screen
 
@@ -110,7 +121,7 @@ async def spin(bot,i):
     if cfg['spin_role'] and cfg['spin_role'] not in {r.id for r in member.roles}:raise ValueError("You do not have the configured daily-spin role.")
     result=await bot.db.spin(i.guild_id,i.user.id,member.display_name,i.id)
     if result['created']:
-        busy=Screen(bot,'Daily RC Spin','Spinning…','spin-decelerating.gif',owner=i.user.id,full_art=True)
+        busy=Screen(bot,'Daily RC Spin','Spinning…','spin-decelerating.gif',owner=i.user.id,full_art=True,accent=GOLD)
         busy.button('Spinning…',lambda j:spin(bot,j),disabled=True)
         try:await i.edit_original_response(view=busy,attachments=busy.files(),allowed_mentions=MENTIONS)
         except (discord.HTTPException,OSError) as exc:bot.report_error(exc)
@@ -119,9 +130,9 @@ async def spin(bot,i):
     reset=calendar.timegm(time.strptime(result['day'],'%Y-%m-%d'))+86400
     next_spin=f'Next spin: <t:{reset}:R> · 00:00 UTC' if bot.db.clock()<reset else 'Your next daily spin is ready. Open Daily Spin.'
     text=phrase(cfg,'spin_result',amount=result['amount'])+f"\n**{result['amount']} RC** "+('added to your balance.' if result['created'] else 'was already credited.')+f"\nAvailable balance: **{account['available']} RC**\nClaim date: {result['day']} UTC\n{next_spin}"
-    screen=Screen(bot,'Daily Spin Result',text,'spin-start.png',owner=i.user.id,full_art=True)
+    screen=Screen(bot,'Daily Spin Result',text,'spin-start.png',owner=i.user.id,full_art=True,accent=GOLD)
     screen.button('Claim Recorded',lambda j:spin(bot,j),disabled=True)
-    screen.button('My RC',lambda j:member_page(bot,j,'balance'))
+    screen.button('My Dashboard',lambda j:member_page(bot,j,'dashboard'))
     screen.button('Daily Spin',lambda j:member_page(bot,j,'spin'))
     screen.button('Home',lambda j:member_page(bot,j,'home'))
     try:await i.edit_original_response(view=screen,attachments=screen.files(),allowed_mentions=MENTIONS)
@@ -139,8 +150,8 @@ def raffle_view(bot,r,cfg=None):
         winners=[p['user'] for p in r.get('prizes',[]) if p['state'] not in ('forfeited','replaced')] if 'prizes' in r else [u for rnd in r['rounds'] for u in rnd['winners']]
         text+=phrase(cfg,'raffle_result')+f"\n\nCurrent winners, through round {r['rounds'][-1]['round']}: "+(', '.join(f"<@{u}>" for u in winners) or "No draw. All reservations were refunded.")+"\nFull round history is available in Verify Draw."
     text=phrase(cfg,'raffle_howto')+'\n\n'+text
-    screen=Screen(bot,f"RC Raffle #{r['id']} · {escape(s['title'])}",text,persistent=True)
-    screen.button('Buy Tickets',lambda i:buy_modal(bot,i,r['id']),discord.ButtonStyle.success,disabled=status!='open',custom_id=f"rz:buy:{r['id']}")
+    screen=Screen(bot,f"RC Raffle #{r['id']} · {escape(s['title'])}",text,persistent=True,accent=GOLD)
+    screen.button('Buy Tickets',lambda i:buy_modal(bot,i,r['id']),discord.ButtonStyle.primary,disabled=status!='open',custom_id=f"rz:buy:{r['id']}")
     screen.button('My Entry',lambda i:entry(bot,i,r['id']),custom_id=f"rz:entry:{r['id']}")
     screen.button('Verify Draw',lambda i:proof(bot,i,r['id']),disabled=not r['rounds'],custom_id=f"rz:proof:{r['id']}")
     screen.button('Claim Prize',lambda i:claim(bot,i,r['id']),disabled=status!='drawn',custom_id=f"rz:claim:{r['id']}")
@@ -161,21 +172,26 @@ async def purchase_preview(bot,i,rid,values):
     cost=quantity*r['spec']['price'];request=str(i.id)
     text=f"Raffle #{rid}: {escape(r['spec']['title'])}\nTickets: **{quantity}**\nTotal reserved cost: **{cost} RC**\nAvailable balance: {account['available']} RC\n\nConfirm to reserve RC and register your tickets."
     async def confirm(j):
-        await j.response.defer(ephemeral=True,thinking=True)
+        await defer(j,update=True)
         m,_=await bot.member_access(j,active=True)
         current=await bot.db.raffle(j.guild_id,rid)
         if not await bot.service.eligible(j.guild,i.user.id,current['contract']['member_role']):raise ValueError("You no longer meet this raffle's access-role requirement.")
         paid=await bot.db.buy(j.guild_id,rid,j.user.id,quantity,request,m.display_name)
-        await reply(j,content=phrase(cfg,'purchase_receipt')+'\n'+f"{paid['quantity']} tickets registered for raffle #{rid}. {paid['cost']} RC reserved. Receipt #{paid['id']}.")
-    screen=Screen(bot,'Confirm Ticket Purchase',text,owner=i.user.id)
+        receipt=Screen(bot,'Tickets Recorded',phrase(cfg,'purchase_receipt')+'\n'+f"{paid['quantity']} tickets registered for raffle #{rid}. {paid['cost']} RC reserved. Receipt #{paid['id']}.",owner=j.user.id,accent=GOLD)
+        receipt.button('My Entry',lambda k:entry(bot,k,rid));receipt.button('My Dashboard',lambda k:member_page(bot,k,'dashboard'));receipt.button('Home',lambda k:member_page(bot,k))
+        await show(j,receipt,update=True)
+    screen=Screen(bot,'Confirm Ticket Purchase',text,owner=i.user.id,accent=GOLD)
     screen.button('Confirm Purchase',confirm,discord.ButtonStyle.success)
+    screen.button('Cancel',lambda j:member_page(bot,j,'raffles'))
     await show(i,screen)
 
 
 async def entry(bot,i,rid):
-    await defer(i);await bot.member_access(i)
+    await defer(i,update=True);await bot.member_access(i)
     rows=await bot.db.query("SELECT quantity,cost,state FROM purchases WHERE guild=? AND raffle=? AND user=? ORDER BY id",(i.guild_id,rid,i.user.id))
-    await reply(i,content='\n'.join(f"{r['quantity']} tickets · {r['cost']} RC · {r['state']}" for r in rows) or "You have no tickets in this raffle.")
+    screen=Screen(bot,'My Raffle Entry',f'Raffle #{rid}\n'+'\n'.join(f"{r['quantity']} tickets · {r['cost']} RC · {r['state']}" for r in rows) if rows else 'You have no tickets in this raffle.',owner=i.user.id,accent=GOLD)
+    screen.button('RC Raffles',lambda j:member_page(bot,j,'raffles'));screen.button('My Dashboard',lambda j:member_page(bot,j,'dashboard'));screen.button('Home',lambda j:member_page(bot,j))
+    await show(i,screen,update=True)
 
 
 async def proof(bot,i,rid):
@@ -185,10 +201,14 @@ async def proof(bot,i,rid):
 
 
 async def claim(bot,i,rid):
-    await defer(i);await bot.member_access(i)
+    await defer(i,update=True);await bot.member_access(i)
     _,cfg=await bot.member_access(i)
     changed=await bot.db.prize_status(i.guild_id,rid,i.user.id,'claimed',i.user.id)
-    await reply(i,content=phrase(cfg,'prize_claim')+'\n'+cfg['support_text'] if changed else "Your prize claim is already recorded.")
+    text=(phrase(cfg,'prize_claim') if changed else 'Your prize claim is already recorded.')+'\n'+cfg['support_text']
+    screen=Screen(bot,'Prize Claim',text,owner=i.user.id,accent=TEAL)
+    if cfg['support_channel']:screen.box.add_item(discord.ui.ActionRow(discord.ui.Button(label='Open Support Tickets',url=f"https://discord.com/channels/{i.guild_id}/{cfg['support_channel']}")))
+    screen.button('My Prizes',lambda j:member_page(bot,j,'prizes'));screen.button('My Dashboard',lambda j:member_page(bot,j,'dashboard'));screen.button('Home',lambda j:member_page(bot,j))
+    await show(i,screen,update=True)
 
 
 class Form(discord.ui.Modal):
@@ -235,7 +255,7 @@ async def flags_form(bot,i):
     return await controls(bot,i)
 
 class Setup(discord.ui.View):
-    STEPS=[('panel_channel','Member panel channel'),('tasks_channel','Community tasks channel'),('leaderboard_channel','Leaderboard channel'),('raffle_channel','Public RC raffle channel'),('log_channel','Private moderator log channel'),('member_role','Access role, e.g. Ripper'),('manager_roles','Moderator roles')]
+    STEPS=[('panel_channel','Member panel channel'),('tasks_channel','Community tasks channel'),('leaderboard_channel','Leaderboard channel'),('raffle_channel','Public RC raffle channel'),('log_channel','Public RC activity channel'),('member_role','Access role, e.g. Ripper'),('manager_roles','Moderator roles')]
     def __init__(self,bot,owner,step=0):
         super().__init__(timeout=600);self.bot=bot;self.owner=owner;self.step=step
         key,label=self.STEPS[step];self.key=key
@@ -297,7 +317,7 @@ async def report_page(bot,i):
 
 def task_view(bot,task,cfg):
     period={0:'One-time',86400:'Daily UTC',604800:'Weekly from creation date UTC'}[task['period']]
-    text=task['body']+f"\n\nBase reward: {task['reward']} RC · {period}\nCooldown: {task['cooldown']} seconds · Status: {task['status']}"
+    text=task['body']+f"\n\nBase reward: {task['reward']} RC · {period}\nCooldown: {format_duration(task['cooldown'])} · Status: {task['status']}"
     if task['ends']:text+=f"\nDeadline: <t:{task['ends']}:F>"
     text+='\n\n'+cfg['task_footer']
     if task['status']=='closed':text+='\n'+phrase(cfg,'task_closed')
@@ -310,10 +330,10 @@ def public_leaderboard(bot,rows,cfg=None):
     cfg=settings(cfg)
     text='\n'.join(f"#{r.get('rank',n)} · <@{r['user']}> · **{r['earned']} RC**" for n,r in enumerate(rows,1)) or 'Be the first to earn Ripper Credits.'
     text+=f"\n\nLifetime earned RC · Updated <t:{int(time.time())}:T>\nEqual scores share a rank. Spending does not lower your score. Open a private view below."
-    view=Screen(bot,'Ripper Zone · Community Leaderboard',phrase(cfg,'leaderboard_intro')+'\n\n'+text,persistent=True)
+    view=Screen(bot,'Ripper Zone · Community Leaderboard',phrase(cfg,'leaderboard_intro')+'\n\n'+text,persistent=True,accent=TEAL)
     from .member_ui import page_view
     for label,period in [('All Time','all'),('This Week','week'),('This Month','month'),('Today','today')]:
         view.button(label,lambda i,p=period:page_view(bot,i,'leaders',period=p),custom_id='rz:leaders:'+period)
     view.button('My Rank',lambda i:page_view(bot,i,'leaders'),custom_id='rz:leaders:mine')
-    view.button('My RC',lambda i:member_page(bot,i,'balance'),custom_id='rz:leaders:balance')
+    view.button('My Dashboard',lambda i:member_page(bot,i,'dashboard'),custom_id='rz:leaders:balance')
     return view
