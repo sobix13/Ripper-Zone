@@ -77,13 +77,13 @@ async def test_rank_ties_pagination_and_mine(db):
 
 async def test_reaction_editor_and_stale_revision(panel):
     b,g,_,_,fresh=panel;i=fresh();await admin.reactions(b,i)
-    s=shown(i);j=fresh();await button(s,'Add Quality Reaction').callback(j)
+    s=shown(i);j=fresh();await button(s,'Add Reaction').callback(j)
     modal=j.response.modal
     modal.inputs['emoji']._value='🔥';modal.inputs['amount']._value='8'
     k=fresh();await modal.on_submit(k)
     assert (await b.db.config(1))[0]['reactions']['🔥']['amount']==8
     # The old editor retains its opening revision and cannot overwrite new settings.
-    old=fresh();await button(s,'Add Base Reaction').callback(old)
+    old=fresh();await button(s,'Add Reaction').callback(old)
     old.response.modal.inputs['emoji']._value='⭐'
     k=fresh();await old.response.modal.on_submit(k)
     assert '⭐' not in (await b.db.config(1))[0]['reactions']
@@ -98,7 +98,7 @@ async def test_messages_preview_save_updates_rendering_and_queues_sync(panel):
     cfg,_=await b.db.config(1)
     assert cfg['welcome_text']=='Welcome to the new RC panel.'
     view=ui.gateway(b,cfg);payload(view)
-    assert cfg['welcome_text'] in view.box.children[0].children[0].content
+    assert any(cfg['welcome_text'] in x.content for x in view.walk_children() if isinstance(x,discord.ui.TextDisplay))
     assert await b.db.query("SELECT 1 FROM jobs WHERE kind='panel_refresh'")
 
 @pytest.mark.parametrize('text',['{amount.__class__}','{amount[0]}','{amount!r}','{unknown}','{amount:10000}','{'])
@@ -163,7 +163,7 @@ async def test_reaction_timeout_is_durable_and_retry_pays_once(panel):
 async def test_new_task_and_member_detail_flow(panel):
     b,g,_,_,fresh=panel;i=fresh();await ui.task_form(b,i)
     j=fresh();await button(shown(i),'Daily').callback(j)
-    values={'title':'Photo Task','body':'Post a collection photo.','reward':'5','cooldown':'60','hours':'72'}
+    values={'title':'Photo Task','body':'Post a collection photo.','reward':'5','cooldown':'60s','duration':'72h'}
     for key,value in values.items():j.response.modal.inputs[key]._value=value
     k=fresh();await j.response.modal.on_submit(k);shown(k)
     tid=(await b.db.query('SELECT id FROM tasks'))[0]['id']
@@ -262,7 +262,7 @@ async def test_manual_close_always_has_durable_archival_job(db):
 async def test_emoji_aliases_and_base_amount_are_rejected():
     cfg=settings();cfg['reactions']['✅️']={'kind':'base','amount':0}
     with pytest.raises(ValueError):settings(cfg)
-    cfg=settings();cfg['reactions']['✅']['amount']=5
+    cfg=settings();cfg['reactions']['✅']={'kind':'base','amount':5}
     with pytest.raises(ValueError):settings(cfg)
 
 async def test_reaction_inbox_preserves_original_rule(panel):
@@ -330,6 +330,7 @@ async def test_log_channel_rejects_another_public_role_allow(panel):
     role=MagicMock(spec=discord.Role);role.id=1234;role.permissions.administrator=False
     role.tags=None;channels[15].overwrites={role:discord.PermissionOverwrite(view_channel=True)}
     cfg,_=await b.db.config(1)
+    cfg['audit_channel']=15;cfg['log_channel']=14
     with pytest.raises(ValueError,match='unapproved'):await b.service.validate_config(g,cfg)
 
 async def test_member_correction_from_native_picker(panel):

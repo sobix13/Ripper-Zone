@@ -19,7 +19,7 @@ async def test_award_notifications_are_brief_and_replay_does_not_notify_again(db
     assert await db.award(1,{3:'Alice',4:'Bob'},100,2,'Private review detail','brief-award')==0
     jobs=await db.query("SELECT payload FROM jobs WHERE kind='notice' ORDER BY key")
     notices=[json.loads(row['payload']) for row in jobs]
-    assert notices==[{'channel':15,'text':'<@3> received 100 RC.'},{'channel':15,'text':'<@4> received 100 RC.'}]
+    assert notices==[{'channel':15,'text':'<@3> received 100 RC from a moderator award.'},{'channel':15,'text':'<@4> received 100 RC from a moderator award.'}]
     rows=await db.query('SELECT actor,reason,da,dr,de FROM ledger ORDER BY user')
     assert rows==[dict(actor=2,reason='Private review detail',da=100,dr=0,de=100)]*2
 
@@ -30,10 +30,14 @@ async def test_non_earning_notifications_do_not_claim_a_new_reward(db,da,dr,de):
     if dr<0:
         await db.run(lambda c:db._entry(c,1,3,-10,10,0,'raffle','reserve','op','Reservation',2,'reserve'))
     await db.run(lambda c:db._entry(c,1,3,da,dr,de,'adjustment','test','op','Review detail',2,'non-earning'))
-    row=(await db.query("SELECT payload FROM jobs WHERE key='notice:non-earning'"))[0]
+    assert not await db.query("SELECT payload FROM jobs WHERE key='notice:non-earning'")
+    cfg,rev=await db.config(1);cfg['audit_channel']=16;await db.save_config(1,cfg,rev,2)
+    await db.run(lambda c:db._entry(c,1,3,1,0,1,'adjustment','test','op','Private audit detail',2,'audit-only'))
+    row=(await db.query("SELECT payload FROM jobs WHERE key='notice:audit-only'"))[0]
     text=json.loads(row['payload'])['text']
     assert 'received' not in text
-    assert f'available {da:+}, reserved {dr:+}, earned {de:+}' in text
+    assert json.loads(row['payload'])['channel']==16
+    assert 'available +1, reserved +0, earned +1' in text
 
 
 def test_all_ten_thousand_rolls_exact_distribution():

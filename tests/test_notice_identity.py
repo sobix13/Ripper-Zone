@@ -31,7 +31,7 @@ async def test_receipt_has_readable_clickable_identity_without_pings(receipt,sou
     elif source=='id':await bot.db.execute("UPDATE accounts SET name='' WHERE guild=1 AND user=3")
     await service.job(job)
     name='Current Alice' if source in ('cache','member_api','user_api') else 'Saved Alice' if source=='saved' else 'Member 3'
-    assert channel.send.call_args.args[0]==f'[@{name}](https://discord.com/users/3) received 5 RC.'
+    assert channel.send.call_args.args[0]==f'[@{name}](https://discord.com/users/3) received 5 RC from a moderator award.'
     assert channel.send.call_args.kwargs['allowed_mentions'].to_dict()=={'parse':[]}
     assert channel.send.call_args.kwargs['suppress_embeds'] is True
     if source=='cache':guild.fetch_member.assert_not_awaited();bot.fetch_user.assert_not_awaited()
@@ -46,7 +46,7 @@ async def test_receipt_escapes_display_name_link_injection(receipt):
     content=channel.send.call_args.args[0]
     assert '\\]\\(https://evil.example\\)' in content
     assert '@\u200beveryone' in content and '\\*\\*name\\*\\*' in content
-    assert content.endswith('](https://discord.com/users/3) received 5 RC.')
+    assert content.endswith('](https://discord.com/users/3) received 5 RC from a moderator award.')
 
 
 async def test_pending_legacy_receipt_resolves_name_without_changing_accounting(receipt):
@@ -55,7 +55,7 @@ async def test_pending_legacy_receipt_resolves_name_without_changing_accounting(
     job['payload']['text']='RC record spin:1:3:day: <@!3> | available +5, reserved +0, earned +5.'
     await service.job(job)
     assert '[@Alice](https://discord.com/users/3)' in channel.send.call_args.args[0]
-    assert 'available +5, reserved +0, earned +5.' in channel.send.call_args.args[0]
+    assert 'available +5' not in channel.send.call_args.args[0] # pending receipts are safe for the public channel
 
 
 async def test_transient_identity_failure_retries_instead_of_posting_wrong_identity(receipt):
