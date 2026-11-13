@@ -6,7 +6,7 @@ import discord
 from . import ui
 from .features import SPIN,cycle
 from .copy import phrase
-from .service import tier_for
+from .service import tier_for,leaderboard_exclusions
 from .durations import format_duration
 
 
@@ -38,9 +38,10 @@ async def page_view(bot,i,page='home',offset=0,since=0,period='all',selected=0):
         from .guides import member_guide
         return await member_guide(bot,i)
     await ui.defer(i,update=True);member,cfg=await bot.member_access(i)
-    a=await bot.db.account(i.guild_id,i.user.id,member.display_name)
+    excluded=await leaderboard_exclusions(i.guild) if page in ('home','dashboard','leaders') else ()
+    a=await bot.db.account(i.guild_id,i.user.id,member.display_name,excluded=excluded)
     title='Ripper Zone';text='';art='welcome-banner.webp';rows=[];total=0;claim=None
-    rank=f"#{a['rank']}" if a['rank'] else 'Not ranked yet'
+    rank='Not listed' if i.user.id in excluded else f"#{a['rank']}" if a['rank'] else 'Not ranked yet'
     if page=='home':
         counts=(await bot.db.query("SELECT (SELECT COUNT(*) FROM tasks WHERE guild=? AND status='active' AND (ends=0 OR ends>?)) tasks,(SELECT COUNT(*) FROM raffles WHERE guild=? AND status='open') raffles",(i.guild_id,int(time.time()),i.guild_id)))[0]
         claim=await bot.db.spin_today(i.guild_id,i.user.id)
@@ -57,10 +58,10 @@ async def page_view(bot,i,page='home',offset=0,since=0,period='all',selected=0):
         if cfg['spin_role'] and cfg['spin_role'] not in {r.id for r in member.roles}:text+=f"\nDaily spin also requires <@&{cfg['spin_role']}>."
     elif page=='leaders':
         title='Community Leaderboard';art='leaderboard.webp';start=period_start(period)
-        board=await bot.db.leaderboard(i.guild_id,i.user.id,start,offset);rows=board['rows'];total=board['total'];mine=board['mine']
+        board=await bot.db.leaderboard(i.guild_id,i.user.id,start,offset,excluded=excluded);rows=board['rows'];total=board['total'];mine=board['mine']
         text=f"Period: **{dict(all='All Time',week='This Week · Monday UTC',month='This Month · UTC',today='Today · UTC')[period]}**\nUpdated <t:{int(time.time())}:T>\n\n"+'\n'.join(f"{'🥇' if r['rank']==1 else '🥈' if r['rank']==2 else '🥉' if r['rank']==3 else str(r['rank'])+'.'} <@{r['user']}> · **{r['earned']} RC**" for r in rows)
         if not rows:text+='No earned RC in this period.'
-        text+=f"\n\nYour rank: "+(f"**#{mine['rank']}** · {mine['earned']} RC" if mine else 'No earned RC in this period')+f"\nPage {offset//10+1} of {max(1,(total+9)//10)} · {total} ranked members\nEqual earned RC share the same rank. Ticket spending does not lower rankings."
+        text+=f"\n\nYour rank: "+('Not listed' if i.user.id in excluded else f"**#{mine['rank']}** · {mine['earned']} RC" if mine else 'No earned RC in this period')+f"\nPage {offset//10+1} of {max(1,(total+9)//10)} · {total} ranked members\nEqual earned RC share the same rank. Ticket spending does not lower rankings."
     elif page=='tasks':
         title='Community Tasks';art='tasks.png';status='closed' if since else 'active'
         where="status='closed'" if since else "status='active' AND (ends=0 OR ends>?)"

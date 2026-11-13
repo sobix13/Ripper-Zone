@@ -20,7 +20,7 @@ from .features import cycle
 from .durations import format_duration,MAX_TASK_TIME
 from .copy import phrase
 from .storage import Database
-from .service import Service
+from .service import Service,leaderboard_exclusions,LEADERBOARD_EXCLUDED_ROLES
 from . import ui
 
 log=logging.getLogger(__name__)
@@ -126,7 +126,7 @@ class RipperBot(discord.Client):
         cfg,revision=await self.db.config(guild.id)
         if not cfg['leaderboard_channel']:return
         channel=guild.get_channel(cfg['leaderboard_channel'])
-        rows=await self.db.leaders(guild.id)
+        rows=await self.db.leaders(guild.id,excluded=await leaderboard_exclusions(guild))
         text='\n'.join(f"{n}. <@{r['user']}> · **{r['earned']} RC**" for n,r in enumerate(rows,1)) or "Be the first to earn Ripper Credits."
         screen=ui.public_leaderboard(self,rows,cfg)
         if cfg['leaderboard_message']:
@@ -220,6 +220,8 @@ class RipperBot(discord.Client):
     async def on_member_update(self,before,after):
         if after.guild.id==self.guild_id and before.roles!=after.roles:
             await self.db.enqueue(f"role:{after.guild.id}:{after.id}",'role',after.guild.id,{'user':after.id})
+            if bool(LEADERBOARD_EXCLUDED_ROLES&{r.id for r in before.roles})!=bool(LEADERBOARD_EXCLUDED_ROLES&{r.id for r in after.roles}):
+                await self.db.enqueue(f'leaderboard:{after.guild.id}','leaderboard_refresh',after.guild.id,{})
 
 
 def commands(bot):
@@ -410,7 +412,11 @@ def commands(bot):
     async def report(i:discord.Interaction,kind:Literal['leaderboard','ledger','tasks','raffles','audit']):
         await ui.defer(i);await bot.authorize(i)
         sql={'leaderboard':"SELECT * FROM accounts WHERE guild=? ORDER BY earned DESC,user",'ledger':"SELECT * FROM ledger WHERE guild=? ORDER BY id",'tasks':"SELECT * FROM tasks WHERE guild=? ORDER BY id",'raffles':"SELECT id,guild,actor,channel,message,status,spec,created,error FROM raffles WHERE guild=? ORDER BY id",'audit':"SELECT * FROM audit WHERE guild=? ORDER BY id"}[kind]
-        rows=await bot.db.query(sql,(i.guild_id,));buffer=io.StringIO();writer=csv.writer(buffer)
+        args=(i.guild_id,)
+        if kind=='leaderboard':
+            sql=sql.replace('WHERE guild=?','WHERE guild=? AND user NOT IN (SELECT value FROM json_each(?))')
+            args+=(canonical(await leaderboard_exclusions(i.guild)),)
+        rows=await bot.db.query(sql,args);buffer=io.StringIO();writer=csv.writer(buffer)
         if rows:
             writer.writerow(rows[0].keys())
             for row in rows:
