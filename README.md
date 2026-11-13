@@ -1,6 +1,8 @@
 # Ripper Zone
 
-Rip Cars community participation, powered by Ripper Credits (RC). Release 1.1.0.
+Rip Cars community participation, powered by Ripper Credits (RC). Release 1.1.1.
+
+New credit award notices use one line: `@member received 100 RC.` Full reasons and accounting remain in History and reports. Refunds, reservations and deductions retain their separate accounting notices. Existing posted or already-queued notices are not rewritten.
 
 One account combines community tasks, finalized Rumble/ordinary-raffle participation, moderator awards and a free daily spin. Available RC buy public raffle tickets. Spending does not reduce lifetime earned RC, rank or achievement progress.
 
