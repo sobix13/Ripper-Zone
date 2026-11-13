@@ -36,6 +36,7 @@ class Response:
 def interaction(user=3):
     i=NS(guild_id=1,guild=NS(id=1),user=NS(id=user),id=1000+user)
     i.response=Response();i.followup=NS(send=AsyncMock())
+    i.edit_original_response=AsyncMock()
     return i
 
 
@@ -91,12 +92,13 @@ async def test_persistent_gateway_and_raffle_buttons_survive_restart_shapes(db,s
         assert buy.disabled==(state!='open')
 
 
-async def test_spin_click_credits_once_and_shows_saved_result(db):
+async def test_spin_click_credits_once_and_shows_saved_result(db,monkeypatch):
+    monkeypatch.setattr(ui,'sleep',AsyncMock())
     b=fake_bot(db)
     for n in range(2):
         i=interaction();i.id=100+n
         await ui.spin(b,i)
-        screen=i.followup.send.call_args.kwargs['view'];payload(screen)
+        screen=i.edit_original_response.call_args.kwargs['view'];payload(screen)
     assert len(await db.query('SELECT * FROM spin_claims'))==1
     assert len(await db.query('SELECT * FROM ledger'))==1
 
