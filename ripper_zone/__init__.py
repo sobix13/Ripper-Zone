@@ -1,2 +1,2 @@
 """Ripper Zone: RipCars community participation and Ripper Credits."""
-__version__ = "1.1.2"
+__version__ = "1.1.3"
