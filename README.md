@@ -1,8 +1,10 @@
 # Ripper Zone
 
-Rip Cars community participation, powered by Ripper Credits (RC). Release 1.1.2.
+Rip Cars community participation, powered by Ripper Credits (RC). Release 1.1.3.
 
-New credit award notices use one line: `@member received 100 RC.` Full reasons and accounting remain in History and reports. Refunds, reservations and deductions retain their separate accounting notices. Existing posted or already-queued notices are not rewritten.
+New credit award notices use one line: `@member received 100 RC.` Full reasons and accounting remain in History and reports. Refunds, reservations and deductions retain their separate accounting notices. Existing posted messages are not rewritten. Pending notices retain their original reward wording.
+
+RC notices display an escaped, clickable profile name rather than relying on the client resolving a raw mention. Delivery uses the guild member, then Discord user lookup, then a saved account name or member ID. Notifications remain disabled. Pending ledger notices use this formatting when delivered; already-posted messages are not edited.
 
 One account combines community tasks, finalized Rumble/ordinary-raffle participation, moderator awards and a free daily spin. Available RC buy public raffle tickets. Spending does not reduce lifetime earned RC, rank or achievement progress.
 
