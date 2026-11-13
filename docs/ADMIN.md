@@ -1,12 +1,12 @@
-# Panel administration · 1.1.0
+# Panel administration · 1.2.0
 
 Open `/ripper admin`, or Administration from your member home when authorized. Routine tasks do not require command names or numeric member IDs.
 
 | Section | Actions |
 | --- | --- |
-| Community Tasks | New, active/past/review lists, details, participant accounts, edit title/body/reward/cooldown, human-readable UTC deadline, duplicate, close/archive, cycle snapshot, reviewed base/quality contribution, reset cooldown, reaction recovery, brief refresh and binding recovery |
+| Community Tasks | New, active/past/review lists, details, participant accounts, edit title/body/reward/cooldown, human-readable UTC deadline, duplicate, close/archive, cycle snapshot, reviewed task participation and extra RC bonus, reset cooldown, reaction recovery, brief refresh and binding recovery |
 | RC and Members | Native member selector, account/history, award preview, signed correction and invalid reward reversal |
-| Snapshots | Rumble/ordinary raffle finalized events, task cycle, channel/thread window, message reactions |
+| Snapshots | Rumble/ordinary raffle finalized events, task cycle, channel/thread window, message reactions, frozen voice/stage presence |
 | RC Raffles | Draft create/edit, publish preview, close/retry, cancel/refund, proof, prize delivery/forfeit and replacement |
 | Settings | Channels/access, message movement, reactions, 25 editable copy fields, three-role wizard, program toggles, export/import/history and restore |
 | Reports | Leaderboard, ledger, tasks, raffles and audit CSV |
@@ -29,7 +29,7 @@ History retains thirty snapshots. Base fields and extended presentation fields a
 
 ## Participation rules
 
-Task base awards share task/cycle/member identity across reactions, manual review and cycle snapshots. Quality bonuses are extra operations. Removing a reaction does not reverse RC. Revoke a specific invalid reward with a reason. That also removes its relevant achievement metric.
+Task participation awards share task/cycle/member identity across manual review and cycle snapshots. Fixed RC reaction rewards are separate and use message/emoji/member identity across the server. The editor has one RC amount per emoji, up to 100 rules. Legacy base reactions become 5 RC fixed rewards; existing legacy quality amounts are preserved. Already-queued legacy reviews retain their original task contract. Removing a reaction does not reverse RC. Revoke a specific invalid reward with a reason. That also removes its relevant achievement metric.
 
 Recorded task messages represent presence, not a content approval queue. Cycle snapshot confirmation approves the batch. General window/reaction snapshots are new manual award operations. Their confirmation is repeat-safe, but starting a new snapshot intentionally creates a new award. Finalized event snapshots have stronger event-level deduplication.
 
@@ -39,10 +39,18 @@ Ordinary raffle participation uses its initial eligible pool, including losing e
 
 Health → Check Rumble Connection / Check Raffle Connection lists the latest 25 completed events. Defaults match the existing deployment layouts. For a custom path, a VPS owner sets RUMBLE_DATABASE_PATH or RAFFLE_DATABASE_PATH in the private Zone environment and restarts the recovery helper. No source bot's credentials, database ownership or service are changed.
 
-The advanced `/ripper snapshot` attachment import and `scripts/export_event.py` remain available for manual transfers. They are not required by the normal event picker. JSON checksums detect corruption; they do not authenticate a manually fabricated file. Snapshot access is a financial moderator permission.
+`/ripper snapshot amount:10` in a call chat captures connected humans for a frozen, editable-amount preview. Streaming viewers are not verifiable. The optional `/ripper snapshot` attachment import and `scripts/export_event.py` remain available for manual transfers. They are not required by the normal event picker. JSON checksums detect corruption; they do not authenticate a manually fabricated file. Snapshot access is a financial moderator permission.
 
 ## Recovery boundaries
 
 Health displays failed job keys/errors and publication review IDs. Retry repeats effects with their original financial identities. An accounting pause clears only after reconciliation succeeds. Backup Now writes a private verified SQLite copy on the VPS, never uploads the ledger to Discord. Restart uses the helper's fixed target and persisted budget. Independent pulse reactions accept environment OWNER_IDS only.
 
 If a task brief send is uncertain, inspect the thread and use Recover Brief Binding with its existing message ID. If the thread itself was never bound, select the task under Publication Review and use Bind Thread. Message/thread IDs are needed for exceptional binding recovery, not routine task creation or participant selection.
+
+## Member navigation, time fields and public receipts
+
+Home: Daily Spin, Community Tasks, RC Raffles, My Dashboard, secondary Help. Dashboard: balance, My Prizes, Leaderboard, My Activity, History, optional My Progress. Private navigation edits the same message with replacement attachments. Public entry points always create private responses. English copy and existing owner isolation are retained.
+
+Task time fields accept 12s, 12m, 12h, 12d (maximum 90d), or none where an unlimited value is allowed. Bare numbers and non-ASCII digits are rejected. Set Deadline also accepts an absolute UTC date. A duration deadline starts when saved. Recurrence is independent.
+
+Settings → Channels and Access → Public RC activity channel selects the public reward feed. Private operations channel is optional and must remain hidden from community roles. Negative adjustments, reservations and refunds never appear as new public earnings; they remain in private history/accounting. Health shows receipt states and Retry RC Receipts, which does not repeat an award. Old posted receipts remain unchanged. Submission/cooldown DMs are disabled; cooldown notices stay in the thread and disappear after ten seconds.

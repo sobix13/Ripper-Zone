@@ -6,6 +6,7 @@ import sqlite3
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+from .copy import receipt_text
 from .config import canonical, clean, digest, ident, integer, settings, LEGACY_KEYS
 from .features import Features
 from .raffles import Raffles
@@ -117,13 +118,19 @@ class Database(Features, Raffles):
         data=json.loads(row[0]) if row else {}
         extra=c.execute('SELECT value FROM meta_flags WHERE key=?',(f'settings_extra:{guild}',)).fetchone()
         if extra:data.update(json.loads(extra[0]))
+        extension=c.execute('SELECT value FROM meta_flags WHERE key=?',(f'settings_v2:{guild}',)).fetchone()
+        if extension:
+            extension=json.loads(extension[0])
+            if row and extension['revision']==row[1]:data.update(extension['settings'])
         return settings(data),row[1] if row else 0
 
     @staticmethod
     def _put_config(c,guild,data,revision):
         # Keep the v1 settings row readable by the previous release during rollback.
         legacy={k:v for k,v in data.items() if k in LEGACY_KEYS}
-        extra={k:v for k,v in data.items() if k not in LEGACY_KEYS}
+        legacy['reactions']={k:{**v,'kind':'quality' if v['kind']=='fixed' else v['kind']} for k,v in list(legacy['reactions'].items())[:5]}
+        extra={k:v for k,v in data.items() if k not in LEGACY_KEYS and k!='audit_channel'}
+        c.execute('INSERT OR REPLACE INTO meta_flags VALUES(?,?)',(f'settings_v2:{guild}',canonical({'revision':revision,'settings':{k:data[k] for k in ('audit_channel','reactions')}})))
         c.execute('INSERT INTO settings VALUES(?,?,?) ON CONFLICT(guild) DO UPDATE SET data=excluded.data,revision=excluded.revision',(guild,canonical(legacy),revision))
         c.execute('INSERT OR REPLACE INTO meta_flags VALUES(?,?)',(f'settings_extra:{guild}',canonical(extra)))
 
@@ -173,6 +180,8 @@ class Database(Features, Raffles):
             if old['task_footer']!=data['task_footer'] or old['messages']['task_closed']!=data['messages']['task_closed']:
                 for row in c.execute("SELECT id FROM tasks WHERE guild=? AND thread IS NOT NULL",(guild,)):
                     self._enqueue(c,f'tasksync:{row[0]}','task_sync',guild,{'task':row[0]})
+            if old['log_channel']!=data['log_channel']:
+                c.execute("UPDATE jobs SET state='pending',attempts=0,next_at=0,error='' WHERE guild=? AND kind='notice' AND state='failed'",(guild,))
             self._audit(c,guild,actor,"settings",f"revision {revision+1}")
             return revision+1
         return await self.run(save)
@@ -228,9 +237,12 @@ class Database(Features, Raffles):
           (da,dr,de,name[:128],name[:128],guild,user))
         self._enqueue(c,f"role:{guild}:{user}","role",guild,{"user":user})
         cfg,_=self._config(c,guild)
-        if cfg['log_channel']:
-            text=f"<@{user}> received {da} RC." if da>0 and da==de and dr==0 else f"RC record {key}: <@{user}> | available {da:+}, reserved {dr:+}, earned {de:+}. {reason[:300]}"
-            self._enqueue(c,'notice:'+key,'notice',guild,{'channel':cfg['log_channel'],'text':text})
+        record=dict(user=user,da=da,dr=dr,de=de,source=source,kind=kind,ref=ref,reason=reason)
+        text=receipt_text(record)
+        channel=cfg['log_channel'] if text is not None else cfg['audit_channel']
+        if channel:
+            if text is None:text=f"RC record {key}: <@{user}> | available {da:+}, reserved {dr:+}, earned {de:+}. {reason[:300]}"
+            self._enqueue(c,'notice:'+key,'notice',guild,{'channel':channel,'text':text})
         return True
 
     async def account(self,guild,user,name=''):
@@ -240,7 +252,7 @@ class Database(Features, Raffles):
             row=dict(c.execute("SELECT * FROM accounts WHERE guild=? AND user=?",(guild,user)).fetchone())
             row['rank']=1+c.execute("SELECT COUNT(*) FROM accounts WHERE guild=? AND earned>?",(guild,row['earned'])).fetchone()[0] if row['earned']>0 else None
             row['tasks']=c.execute("SELECT COUNT(DISTINCT ref) FROM ledger WHERE guild=? AND user=? AND source='task' AND kind='base' AND de>0 AND NOT EXISTS(SELECT 1 FROM revocations r WHERE r.ledger=ledger.id)",(guild,user)).fetchone()[0]
-            row['events']=c.execute("SELECT COUNT(DISTINCT source||':'||ref) FROM ledger WHERE guild=? AND user=? AND source IN ('rumble','raffle') AND de>0 AND NOT EXISTS(SELECT 1 FROM revocations r WHERE r.ledger=ledger.id)",(guild,user)).fetchone()[0]
+            row['events']=c.execute("SELECT COUNT(DISTINCT source||':'||ref) FROM ledger WHERE guild=? AND user=? AND source IN ('rumble','raffle','voice') AND de>0 AND NOT EXISTS(SELECT 1 FROM revocations r WHERE r.ledger=ledger.id)",(guild,user)).fetchone()[0]
             return row
         return await self.run(get)
 
@@ -287,7 +299,7 @@ class Database(Features, Raffles):
         guild,actor=ident(guild),ident(actor);clean(reason,500)
         def undo(c):
             old=c.execute("SELECT * FROM ledger WHERE guild=? AND id=?",(guild,ledger_id)).fetchone()
-            if not old or old['de']<=0 or old['da']!=old['de'] or old['dr']!=0 or old['source'] not in ('task','manual','spin','rumble','raffle'):
+            if not old or old['de']<=0 or old['da']!=old['de'] or old['dr']!=0 or old['source'] not in ('task','manual','spin','rumble','raffle','reaction','voice'):
                 raise ValueError("Select an original positive contribution reward, not a purchase, refund or correction.")
             if c.execute("SELECT 1 FROM revocations WHERE ledger=?",(ledger_id,)).fetchone():return False
             self._entry(c,guild,old['user'],-old['da'],0,-old['de'],'adjustment','revocation',str(ledger_id),reason,actor,f"revoke:{guild}:{ledger_id}")

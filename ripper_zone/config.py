@@ -39,7 +39,7 @@ def clean(value, limit=1000):
 DEFAULTS = {
     "messages": COPY, "support_channel": 0, "active": False, "member_role": 0, "manager_roles": [], "primary_users": [],
     "panel_channel": 0, "tasks_channel": 0, "leaderboard_channel": 0,
-    "raffle_channel": 0, "log_channel": 0, "panel_message": 0, "leaderboard_message": 0,
+    "raffle_channel": 0, "log_channel": 0, "audit_channel": 0, "panel_message": 0, "leaderboard_message": 0,
     "panel_state": "new", "spin_enabled": True, "spin_role": 0,
     "roles_enabled": False, "tiers": [], "reactions_enabled": True,
     "panel_title": "Ripper Zone",
@@ -47,7 +47,7 @@ DEFAULTS = {
     "about_text": "Ripper Credits recognize your contributions to the Rip Cars community.",
     "support_text": "For help with a reward or prize, contact the server moderators through a support ticket.",
     "task_footer": "Post your contribution in this thread. Moderators review it and award RC with the configured reactions.",
-    "reactions": {"✅": {"kind": "base", "amount": 0}, "🏅": {"kind": "quality", "amount": 5}},
+    "reactions": {"✅": {"kind": "fixed", "amount": 5}, "🏅": {"kind": "fixed", "amount": 5}},
 }
 
 
@@ -69,7 +69,7 @@ def settings(data=None):
     for key,limit in (("panel_title",80),("welcome_text",1200),("about_text",1200),("support_text",800),("task_footer",500)):
         result[key]=clean(result[key],limit)
     for key in ("support_channel", "member_role", "spin_role", "panel_channel", "tasks_channel", "leaderboard_channel",
-                "raffle_channel", "log_channel", "panel_message", "leaderboard_message"):
+                "raffle_channel", "log_channel", "audit_channel", "panel_message", "leaderboard_message"):
         if result[key]:
             result[key] = ident(result[key])
         elif result[key] != 0 or isinstance(result[key], bool):
@@ -97,17 +97,19 @@ def settings(data=None):
         raise ValueError("Complete three tiers before activation.")
     if result["panel_state"] not in ("new", "active", "sending", "review", "missing"):
         raise ValueError("Invalid panel state.")
-    if not isinstance(result["reactions"], dict) or not 1 <= len(result["reactions"]) <= 5:
-        raise ValueError("Configure one to five reward reactions.")
+    if not isinstance(result["reactions"], dict) or not 1 <= len(result["reactions"]) <= 100:
+        raise ValueError("Configure one to 100 reward reactions.")
     keys=[emoji_key(k) for k in result['reactions']]
     if len(keys)!=len(set(keys)):raise ValueError('The same emoji is configured more than once.')
     for emoji, rule in result["reactions"].items():
         validate_emoji(emoji)
-        if set(rule) != {"kind", "amount"} or rule["kind"] not in ("base", "quality"):
-            raise ValueError("Reaction kind must be base or quality.")
+        if set(rule) != {"kind", "amount"} or rule["kind"] not in ("base", "quality", "fixed"):
+            raise ValueError("Invalid reaction rule.")
         integer(rule["amount"], 0, 1000)
         if rule['kind']=='base' and rule['amount']!=0:raise ValueError('Base reactions use the task reward; their amount must be 0.')
-        if rule['kind']=='quality' and rule['amount']==0:raise ValueError("A quality reaction must award at least 1 RC.")
+        if rule['kind'] in ('quality','fixed') and rule['amount']==0:raise ValueError("A reward reaction must award at least 1 RC.")
+    # Legacy base markers had no fixed value; the server-wide default is 5 RC.
+    result['reactions']={emoji:{'kind':'fixed','amount':5 if rule['kind']=='base' else rule['amount']} for emoji,rule in result['reactions'].items()}
     if result["active"] and any(not result[k] for k in ("panel_channel", "tasks_channel", "leaderboard_channel", "raffle_channel", "log_channel")):
         raise ValueError("Select all five channels before activation.")
     return result
@@ -145,3 +147,7 @@ def raffle_spec(spec):
         integer(spec[key], 1, high)
     integer(spec["ends"], 1, 253402300799)
     return spec
+
+
+def display_emoji(key):
+    return '<:reward:'+key.split(':',1)[1]+'>' if key.startswith('custom:') else key

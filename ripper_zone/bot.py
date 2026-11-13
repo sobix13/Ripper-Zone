@@ -17,6 +17,7 @@ from . import __version__, sources
 from .config import canonical,digest,ident, integer, settings, emoji_key
 from .coordination import Registry
 from .features import cycle
+from .durations import format_duration,MAX_TASK_TIME
 from .copy import phrase
 from .storage import Database
 from .service import Service
@@ -28,7 +29,7 @@ log=logging.getLogger(__name__)
 class RipperBot(discord.Client):
     def __init__(self):
         intents=discord.Intents.default()
-        intents.members=True;intents.message_content=True
+        intents.members=True;intents.message_content=True;intents.voice_states=True
         super().__init__(intents=intents,allowed_mentions=ui.MENTIONS)
         self.guild_id=ident(os.environ['DISCORD_GUILD_ID'])
         self.owners={ident(x.strip()) for x in os.environ.get('OWNER_IDS','').split(',') if x.strip()}
@@ -36,7 +37,7 @@ class RipperBot(discord.Client):
         self.tree=app_commands.CommandTree(self)
         self.tree.on_error=self.command_error
         self.registry=None;self.worker=None;self.health_server=None
-        self.service=Service(self);self.started=time.time();self.last_error=''
+        self.service=Service(self);self.started=time.time();self.last_error='';self._cooldown_notices={}
         commands(self)
 
     def report_error(self,exc):
@@ -166,25 +167,26 @@ class RipperBot(discord.Client):
             bypass=member.id in self.owners|set(cfg['primary_users'])|{message.guild.owner_id} or bool(set(cfg['manager_roles'])&{r.id for r in member.roles})
             at=int(message.created_at.timestamp())
             remaining=await self.db.accept_message(message.guild.id,task['id'],member.id,message.id,at,bypass)
-            if remaining==0:
-                try:await member.send(phrase(cfg,'task_received'))
-                except discord.Forbidden:pass
             if remaining>0:
                 await message.delete()
-                try:await member.send(phrase(cfg,'cooldown',remaining=remaining))
-                except discord.Forbidden:
-                    await message.channel.send(phrase(cfg,'cooldown',remaining=remaining),delete_after=10,allowed_mentions=ui.MENTIONS)
+                now=time.monotonic();key=(task['id'],member.id)
+                self._cooldown_notices={k:v for k,v in self._cooldown_notices.items() if v>now}
+                if key not in self._cooldown_notices:
+                    self._cooldown_notices[key]=now+min(remaining,30)
+                    await message.channel.send(ui.escape(member.display_name)+': '+phrase(cfg,'cooldown',remaining=format_duration(remaining)),delete_after=10,allowed_mentions=ui.MENTIONS)
+
         except Exception as exc:self.report_error(exc)
 
     async def on_raw_reaction_add(self,event):
         if event.guild_id!=self.guild_id or event.user_id==self.user.id:return
         try:
-            task=await self.db.task_for_thread(event.guild_id,event.channel_id)
-            if not task:return
             cfg,_=await self.db.config(event.guild_id)
             if not cfg['reactions_enabled']:return
             rule={emoji_key(k):v for k,v in cfg['reactions'].items()}.get(emoji_key(event.emoji))
             if not rule:return
+            actor=getattr(event,'member',None)
+            guild=self.get_guild(event.guild_id)
+            if actor and (actor.bot or (actor.id not in self.owners|set(cfg['primary_users'])|{guild.owner_id if guild else 0} and not set(cfg['manager_roles'])&{r.id for r in actor.roles})):return
             payload=dict(guild_id=event.guild_id,channel_id=event.channel_id,message_id=event.message_id,user_id=event.user_id,emoji=emoji_key(event.emoji),rule=rule)
             await self.db.execute('INSERT OR IGNORE INTO jobs(key,kind,guild,payload) VALUES(?,?,?,?)',(f'reaction:{event.guild_id}:{event.message_id}:{event.user_id}:{emoji_key(event.emoji)}','reaction',event.guild_id,canonical(payload)))
         except Exception as exc:self.report_error(exc)
@@ -192,17 +194,23 @@ class RipperBot(discord.Client):
     async def process_reaction(self,event,rule):
         guild=self.get_guild(event.guild_id)
         if not guild:raise ValueError('Server unavailable.')
-        task=await self.db.task_for_thread(guild.id,event.channel_id)
-        if not task:return
         cfg,_=await self.db.config(guild.id)
         actor=await self.service.eligible(guild,event.user_id)
         if not actor or (actor.id not in self.owners|set(cfg['primary_users'])|{guild.owner_id} and not set(cfg['manager_roles'])&{r.id for r in actor.roles}):return
-        channel=guild.get_thread(event.channel_id) or await self.fetch_channel(event.channel_id)
+        channel=guild.get_channel_or_thread(event.channel_id) or await self.fetch_channel(event.channel_id)
+        if channel.guild.id!=guild.id:raise ValueError('Wrong server.')
         message=await channel.fetch_message(event.message_id)
-        if message.author.bot or message.id==channel.id:return
+        if message.author.bot:return
         recipient=await self.service.eligible(guild,message.author.id,cfg['member_role'])
         if recipient is None:return
         if actor.id==recipient.id:raise ValueError('Another moderator must review your own contribution.')
+        if rule['kind']=='fixed':
+            return await self.db.reaction_award(guild.id,recipient.id,recipient.display_name,actor.id,message.id,emoji_key(event.emoji),rule['amount'])
+        # Retain the original financial contract of already-queued legacy reviews.
+        if message.id==channel.id:return
+        if await self.db.query('SELECT 1 FROM ledger WHERE key=?',(f'reaction:{guild.id}:{message.id}:{emoji_key(event.emoji)}:{recipient.id}',)):return
+        task=await self.db.task_for_thread(guild.id,event.channel_id)
+        if not task:return
         accepted=await self.db.query("SELECT cycle FROM task_messages WHERE task=? AND message=? AND user=?",(task['id'],message.id,recipient.id))
         if not accepted:raise ValueError("This post was not recorded while the bot was online. Review it using /ripper task_reward with the intended cycle.")
         await self.db.task_award(guild.id,task['id'],{recipient.id:recipient.display_name},accepted[0]['cycle'],actor.id,f"reaction:{message.id}:{emoji_key(event.emoji)}",rule['kind'],rule['amount'])
@@ -235,10 +243,13 @@ def commands(bot):
     @group.command(description='Download a health and consistency report')
     async def doctor(i:discord.Interaction):await bot.doctor_action(i)
 
-    @group.command(description='Preview and pay participation RC from an event export')
-    async def snapshot(i:discord.Interaction,event_file:discord.Attachment,amount:int):
+    @group.command(description='Snapshot a voice call, or import a finalized event')
+    async def snapshot(i:discord.Interaction,amount:int,event_file:Optional[discord.Attachment]=None):
         await ui.defer(i);await bot.authorize(i)
         integer(amount,1,1000)
+        if event_file is None:
+            from .admin_ui import voice_snapshot
+            return await voice_snapshot(bot,i,amount=amount)
         if event_file.size>200000:raise ValueError("Event export exceeds 200 KB.")
         data=sources.validate(json.loads(await event_file.read()),i.guild_id)
         async def pay(j):
@@ -287,7 +298,7 @@ def commands(bot):
                 thread=i.guild.get_thread(task['thread']) or await bot.fetch_channel(task['thread'])
                 await thread.edit(locked=True,archived=action=='archive',reason="Ripper Zone task closed")
         elif action=='cooldown':
-            integer(value,0,604800);await bot.db.edit_task(i.guild_id,task_id,{'cooldown':value},i.user.id,digest(task))
+            integer(value,0,MAX_TASK_TIME);await bot.db.edit_task(i.guild_id,task_id,{'cooldown':value},i.user.id,digest(task))
         elif action=='reset_cooldown':
             if value:await bot.db.execute("DELETE FROM cooldowns WHERE task=? AND user=?",(task_id,ident(value)))
             else:await bot.db.execute("DELETE FROM cooldowns WHERE task=?",(task_id,))

@@ -174,7 +174,7 @@ async def test_announcement_failure_does_not_change_saved_winners(db,spec):
     await db.freeze_raffle(1,rid,early=True)
     r=await db.finalize_raffle(1,rid,[{'user':3,'eligible':True},{'user':4,'eligible':True}])
     channel=NS(fetch_message=AsyncMock(side_effect=asyncio.TimeoutError()))
-    guild=NS(id=1,get_channel=lambda _:channel)
+    guild=NS(id=1,emojis=[],get_channel=lambda _:channel)
     with pytest.raises(asyncio.TimeoutError):await b.service.update_raffle(guild,r)
     assert (await db.raffle(1,rid))['rounds']==r['rounds']
     assert (await db.raffle(1,rid))['announcement_state']=='pending'
@@ -227,7 +227,7 @@ async def test_recovery_fatal_marker_stops_restart_before_budget(db,monkeypatch)
 
 
 def simulated_guild(bot_id=99):
-    guild=NS(id=1,owner_id=2)
+    guild=NS(id=1,emojis=[],owner_id=2)
     guild.me=NS(id=bot_id,top_role=NS(id=1000),guild_permissions=NS(manage_roles=True))
     guild.default_role=NS(id=1)
     roles={}
@@ -287,7 +287,7 @@ async def test_task_form_publishes_real_layout_and_durable_thread_brief(db,tmp_p
     page=initial.followup.send.call_args.kwargs['view']
     pick=next(x for x in page.walk_children() if isinstance(x,discord.ui.Button) and x.label=='Daily')
     chosen=interaction(2);chosen.guild=guild;await pick.callback(chosen);modal=chosen.response.modal
-    for key,value in {'title':'Collector Story','body':'Share a photo and a story','reward':'5','cooldown':'60','hours':'24'}.items():modal.inputs[key]._value=value
+    for key,value in {'title':'Collector Story','body':'Share a photo and a story','reward':'5','cooldown':'60s','duration':'24h'}.items():modal.inputs[key]._value=value
     i=interaction(2);i.guild=guild;await modal.on_submit(i)
     task=(await db.query('SELECT * FROM tasks'))[0]
     assert task['status']=='active' and task['thread']==555 and task['period']==86400
@@ -315,7 +315,7 @@ async def test_role_add_failure_keeps_old_tier_and_retry_uses_same_earnings(db,t
     assert (await db.account(1,3))['earned']==25
 
 
-async def test_real_reaction_handler_deduplicates_two_moderators_and_snapshot(db,monkeypatch):
+async def test_server_reaction_deduplicates_moderators_with_separate_task_snapshot(db,monkeypatch):
     monkeypatch.setenv('DISCORD_GUILD_ID','1');monkeypatch.setenv('OWNER_IDS','2,4')
     b=RipperBot();b.db=db;b.service.db=db
     b._connection.user=NS(id=99)
@@ -331,4 +331,5 @@ async def test_real_reaction_handler_deduplicates_two_moderators_and_snapshot(db
     for job in await db.query("SELECT * FROM jobs WHERE kind='reaction'"):
         job['payload']=json.loads(job['payload']);await b.service.job(job)
     assert (await db.account(1,3))['earned']==5
-    assert await db.task_award(1,tid,{3:'Alice'},0,2,'snapshot')==0
+    assert await db.task_award(1,tid,{3:'Alice'},0,2,'snapshot')==1
+    assert (await db.account(1,3))['earned']==10 # task participation is separate from server-wide reactions
