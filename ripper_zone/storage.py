@@ -229,7 +229,8 @@ class Database(Features, Raffles):
         self._enqueue(c,f"role:{guild}:{user}","role",guild,{"user":user})
         cfg,_=self._config(c,guild)
         if cfg['log_channel']:
-            self._enqueue(c,'notice:'+key,'notice',guild,{'channel':cfg['log_channel'],'text':f"RC record {key}: <@{user}> | available {da:+}, reserved {dr:+}, earned {de:+}. {reason[:300]}"})
+            text=f"<@{user}> received {da} RC." if da>0 and da==de and dr==0 else f"RC record {key}: <@{user}> | available {da:+}, reserved {dr:+}, earned {de:+}. {reason[:300]}"
+            self._enqueue(c,'notice:'+key,'notice',guild,{'channel':cfg['log_channel'],'text':text})
         return True
 
     async def account(self,guild,user,name=''):

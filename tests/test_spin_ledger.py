@@ -14,6 +14,28 @@ from ripper_zone.features import SPIN,spin_reward
 from ripper_zone.storage import Database,Conflict
 
 
+async def test_award_notifications_are_brief_and_replay_does_not_notify_again(db):
+    assert await db.award(1,{3:'Alice',4:'Bob'},100,2,'Private review detail','brief-award')==2
+    assert await db.award(1,{3:'Alice',4:'Bob'},100,2,'Private review detail','brief-award')==0
+    jobs=await db.query("SELECT payload FROM jobs WHERE kind='notice' ORDER BY key")
+    notices=[json.loads(row['payload']) for row in jobs]
+    assert notices==[{'channel':15,'text':'<@3> received 100 RC.'},{'channel':15,'text':'<@4> received 100 RC.'}]
+    rows=await db.query('SELECT actor,reason,da,dr,de FROM ledger ORDER BY user')
+    assert rows==[dict(actor=2,reason='Private review detail',da=100,dr=0,de=100)]*2
+
+
+@pytest.mark.parametrize('da,dr,de',[(10,-10,0),(-10,10,0),(-10,0,-10)])
+async def test_non_earning_notifications_do_not_claim_a_new_reward(db,da,dr,de):
+    await db.award(1,{3:'Alice'},20,2,'Initial credits','initial')
+    if dr<0:
+        await db.run(lambda c:db._entry(c,1,3,-10,10,0,'raffle','reserve','op','Reservation',2,'reserve'))
+    await db.run(lambda c:db._entry(c,1,3,da,dr,de,'adjustment','test','op','Review detail',2,'non-earning'))
+    row=(await db.query("SELECT payload FROM jobs WHERE key='notice:non-earning'"))[0]
+    text=json.loads(row['payload'])['text']
+    assert 'received' not in text
+    assert f'available {da:+}, reserved {dr:+}, earned {de:+}' in text
+
+
 def test_all_ten_thousand_rolls_exact_distribution():
     actual=collections.Counter(spin_reward(x) for x in range(10000))
     assert actual==dict(SPIN)
