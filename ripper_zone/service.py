@@ -2,6 +2,7 @@
 import asyncio
 import json
 import logging
+import re
 import time
 from pathlib import Path
 import discord
@@ -279,9 +280,23 @@ class Service:
                 task=await self.db.task_for_thread(guild.id,p['channel'])
                 if task:return await self.sync_task(guild,task['id'])
             channel=guild.get_channel_or_thread(p['channel']) or await self.bot.fetch_channel(p['channel'])
+            text=p['text']
+            if job['key'].startswith('notice:'):
+                match=re.search(r'<@!?(\d+)>',text)
+                if match:
+                    uid=int(match[1]);person=guild.get_member(uid)
+                    if person is None:
+                        try:person=await guild.fetch_member(uid)
+                        except (discord.NotFound,discord.Forbidden):
+                            try:person=await self.bot.fetch_user(uid)
+                            except (discord.NotFound,discord.Forbidden):person=None
+                    rows=await self.db.query('SELECT name FROM accounts WHERE guild=? AND user=?',(guild.id,uid)) if person is None else []
+                    name=person.display_name if person is not None else (rows[0]['name'] if rows else '') or f'Member {uid}'
+                    label=re.sub(r'([\\`*_~|<>\[\]()])',r'\\\1',discord.utils.escape_mentions('@'+name[:128]))
+                    text=text.replace(match[0],f'[{label}](https://discord.com/users/{uid})')
             # Log sends are best-effort with durable retries. Duplicate audit lines after
             # a network timeout are harmless; they never apply financial changes.
-            await channel.send(p['text'][:2000],allowed_mentions=discord.AllowedMentions.none())
+            await channel.send(text[:2000],allowed_mentions=discord.AllowedMentions.none(),suppress_embeds=True)
         elif job['kind']=='taskclose':
             task=await self.db.task(guild.id,p['task'])
             if task['thread']:
