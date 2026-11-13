@@ -10,6 +10,13 @@ from .config import settings, canonical
 from .copy import phrase,receipt_text
 
 log=logging.getLogger(__name__)
+LEADERBOARD_EXCLUDED_ROLES=frozenset((1560351679700799588,1560351676718780617))
+
+
+async def leaderboard_exclusions(guild):
+    # A partial member cache must not expose offline holders of excluded roles.
+    members=guild.members if guild.chunked else await asyncio.wait_for(guild.chunk(cache=True),30)
+    return tuple(m.id for m in members if LEADERBOARD_EXCLUDED_ROLES&{r.id for r in m.roles})
 
 
 def tier_for(account,tiers):
@@ -119,6 +126,7 @@ class Service:
         if not cfg[kind+'_message']:raise ValueError('Publish or recover the existing message first.')
         candidate=dict(cfg);candidate[kind+'_channel']=channel_id
         await self.validate_config(guild,candidate)
+        excluded=await leaderboard_exclusions(guild) if kind=='leaderboard' else ()
         key=f'move:{guild.id}:{kind}'
         def begin(c):
             live,v=self.db._config(c,guild.id)
@@ -131,7 +139,7 @@ class Service:
             self.db._put_config(c,guild.id,live,v+1)
             self.db._audit(c,guild.id,actor,'public_message_move',kind)
         await self.db.run(begin)
-        view=ui.gateway(self.bot,candidate) if kind=='panel' else ui.public_leaderboard(self.bot,await self.db.leaders(guild.id))
+        view=ui.gateway(self.bot,candidate) if kind=='panel' else ui.public_leaderboard(self.bot,await self.db.leaders(guild.id,excluded=excluded))
         msg=await guild.get_channel(channel_id).send(view=view,files=view.files(),allowed_mentions=ui.MENTIONS)
         def bind(c):
             live,v=self.db._config(c,guild.id)

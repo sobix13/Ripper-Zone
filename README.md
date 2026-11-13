@@ -1,6 +1,6 @@
 # Ripper Zone
 
-Rip Cars community participation, powered by Ripper Credits (RC). Release 1.2.0.
+Rip Cars community participation, powered by Ripper Credits (RC). Release 1.2.1.
 
 Public RC receipts use readable, clickable names and a short reward source: `@member received 8 RC for receiving 💜.`, `@member received 3 RC from the daily spin.`, or `@member received 5 RC from the Rumble #123 snapshot.` Names are resolved from Discord or the saved account. Notifications remain disabled. Pending receipts are formatted at delivery; already-posted messages are not edited. Technical accounting records stay in History, reports and the optional private operations channel.
 

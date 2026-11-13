@@ -33,3 +33,10 @@ Receipt identity tests cover cached members, REST membership and user lookup, sa
 Release 1.2.0 adds English duration parsing and readable formatting, same-message private navigation, grouped dashboard sections, server-wide moderator reaction rewards, public source-specific receipts, private operations separation, and immutable voice/stage snapshots. New cases verify malformed and boundary durations, contextual navigation, real SDK edit payloads and attachment replacement, no DMs and throttled cooldown messages, ordinary threads/forum starters, emoji pagination, legacy rule/payment migration, fixed reaction identity across moderators/amount changes, failed notice routing, source-specific public wording, stale voice confirmations, concurrent voice payments, reversals and recovery destination isolation.
 
 The 238-case suite passed locally as an ordinary user and in a UID-0 namespace. Release staging, dependency checks, shell syntax and compilation are included in the final verification. GitHub CI results are reported after actual publication. No live Discord gateway, call, stream, mobile layout or production VPS was accessed. Stream watching is not claimed; voice snapshots record connected human presence only.
+
+
+## 1.2.1 leaderboard-only patch
+
+Holders of either role 1560351679700799588 or 1560351676718780617 are excluded before leaderboard ranking and pagination. Public publication/movement, all private time periods, personal rank and leaderboard CSV use the same filter. Incomplete member caches are loaded before filtering; a failed load does not publish an unfiltered board. Relevant role changes queue a public refresh. Balances, earning eligibility, role metrics and ledger exports are unchanged.
+
+All 246 tests passed locally, including the eight new period, tie/pagination, public move, offline member, role-change and CSV cases. Ordinary-user and root runs, staging and final CI are recorded in the publication verification. Real Discord/VPS execution remains separate.

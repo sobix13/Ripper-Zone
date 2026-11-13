@@ -245,12 +245,13 @@ class Database(Features, Raffles):
             self._enqueue(c,'notice:'+key,'notice',guild,{'channel':channel,'text':text})
         return True
 
-    async def account(self,guild,user,name=''):
+    async def account(self,guild,user,name='',excluded=()):
         guild,user=ident(guild),ident(user)
+        excluded=tuple(ident(uid) for uid in excluded)
         def get(c):
             c.execute("INSERT OR IGNORE INTO accounts(guild,user,name) VALUES(?,?,?)",(guild,user,name[:128]))
             row=dict(c.execute("SELECT * FROM accounts WHERE guild=? AND user=?",(guild,user)).fetchone())
-            row['rank']=1+c.execute("SELECT COUNT(*) FROM accounts WHERE guild=? AND earned>?",(guild,row['earned'])).fetchone()[0] if row['earned']>0 else None
+            row['rank']=1+c.execute("SELECT COUNT(*) FROM accounts WHERE guild=? AND earned>? AND user NOT IN (SELECT value FROM json_each(?))",(guild,row['earned'],canonical(excluded))).fetchone()[0] if row['earned']>0 and user not in excluded else None
             row['tasks']=c.execute("SELECT COUNT(DISTINCT ref) FROM ledger WHERE guild=? AND user=? AND source='task' AND kind='base' AND de>0 AND NOT EXISTS(SELECT 1 FROM revocations r WHERE r.ledger=ledger.id)",(guild,user)).fetchone()[0]
             row['events']=c.execute("SELECT COUNT(DISTINCT source||':'||ref) FROM ledger WHERE guild=? AND user=? AND source IN ('rumble','raffle','voice') AND de>0 AND NOT EXISTS(SELECT 1 FROM revocations r WHERE r.ledger=ledger.id)",(guild,user)).fetchone()[0]
             return row
@@ -311,14 +312,15 @@ class Database(Features, Raffles):
     async def history(self,guild,user,offset=0):
         return await self.query("SELECT * FROM ledger WHERE guild=? AND user=? ORDER BY id DESC LIMIT 10 OFFSET ?",(ident(guild),ident(user),max(0,offset)))
 
-    async def leaderboard(self,guild,user=0,since=0,offset=0):
+    async def leaderboard(self,guild,user=0,since=0,offset=0,excluded=()):
         guild=ident(guild);integer(offset,0,1000000)
+        excluded=canonical(tuple(ident(uid) for uid in excluded))
         def read(c):
             if since:
-                sql="SELECT a.user,a.name,SUM(l.de) earned FROM ledger l JOIN accounts a USING(guild,user) WHERE l.guild=? AND l.at>=? GROUP BY a.user HAVING SUM(l.de)>0"
-                args=(guild,since)
+                sql="SELECT a.user,a.name,SUM(l.de) earned FROM ledger l JOIN accounts a USING(guild,user) WHERE l.guild=? AND l.at>=? AND a.user NOT IN (SELECT value FROM json_each(?)) GROUP BY a.user HAVING SUM(l.de)>0"
+                args=(guild,since,excluded)
             else:
-                sql="SELECT user,name,earned FROM accounts WHERE guild=? AND earned>0";args=(guild,)
+                sql="SELECT user,name,earned FROM accounts WHERE guild=? AND earned>0 AND user NOT IN (SELECT value FROM json_each(?))";args=(guild,excluded)
             ranked=f"WITH scores AS ({sql}), ranked AS (SELECT *,RANK() OVER(ORDER BY earned DESC) rank,ROW_NUMBER() OVER(ORDER BY earned DESC,user) position FROM scores) "
             rows=[dict(r) for r in c.execute(ranked+"SELECT * FROM ranked ORDER BY position LIMIT 10 OFFSET ?",(*args,offset))]
             mine=c.execute(ranked+"SELECT * FROM ranked WHERE user=?",(*args,user)).fetchone()
@@ -326,8 +328,8 @@ class Database(Features, Raffles):
             return {'rows':rows,'mine':dict(mine) if mine else None,'total':total}
         return await self.run(read)
 
-    async def leaders(self,guild,since=0):
-        return (await self.leaderboard(guild,since=since))['rows']
+    async def leaders(self,guild,since=0,excluded=()):
+        return (await self.leaderboard(guild,since=since,excluded=excluded))['rows']
 
     async def reconcile(self,guild):
         def check(c):
