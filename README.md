@@ -1,6 +1,6 @@
 # Ripper Zone
 
-Rip Cars community participation, powered by Ripper Credits (RC). Release 1.1.1.
+Rip Cars community participation, powered by Ripper Credits (RC). Release 1.1.2.
 
 New credit award notices use one line: `@member received 100 RC.` Full reasons and accounting remain in History and reports. Refunds, reservations and deductions retain their separate accounting notices. Existing posted or already-queued notices are not rewritten.
 
@@ -79,6 +79,8 @@ Presence recording is not individual content approval. Cycle snapshots are moder
 ## Daily RC spin
 
 A member explicitly presses **Spin · Free**, once per UTC day. Opening a panel does not claim it.
+
+The private spin page displays the bundled `spin-start.png`. A successful new claim commits its RC before the same private message shows `spin-decelerating.gif`: a shared four-second animation that slows down and stops. Its only button is disabled. The message then returns to the still artwork with the saved reward, current available balance and next reset. Wheel symbols are decorative; amounts appear in text. An already-claimed day skips animation, including after reconnect or service restart. A failed animation edit skips the wait; failed final media delivery falls back to a private text receipt. No images are generated at runtime and no web host or new dependency is required. GIF autoplay and timing on real Discord clients remain part of live acceptance.
 
 | RC | Probability |
 | ---: | ---: |
