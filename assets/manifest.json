@@ -63,5 +63,10 @@
     "file": "logo.png",
     "source": "img/avatar_logo.png",
     "sha256": "482a9e15b3269b7e7ef1cb3bc4f7bf209172f6dd5a8e568bc2a4b6dc3bddbdf0"
+  },
+  {
+    "file": "welcome-banner.webp",
+    "source": "img/gacha_front.webp",
+    "sha256": "41d4170587c9781efeeec3b808f2585e87f9727045465016c2d72dd78352e516"
   }
 ]
