@@ -23,7 +23,7 @@ Main endpoint: 127.0.0.1:3040/health. Detailed /doctor requires the HEALTH_SECRE
 
 The helper observes readiness and worker progress. Three consecutive failed probes trigger a checked restart, subject to a persisted maximum of three restarts per 15 minutes and at least 120 seconds between attempts. A failed SQLite quick_check or a credential/intents fatal marker stops automatic restart. systemd separately limits repeated process failures.
 
-After the private log channel is configured, the helper maintains a status post. Only OWNER_IDS reactions are accepted:
+After the optional Private operations channel (or explicit RECOVERY_CHANNEL_ID) is configured, the helper maintains a status post. Only OWNER_IDS reactions are accepted:
 
 | Reaction | Action |
 | --- | --- |
@@ -81,7 +81,7 @@ Failed upgrades before activation keep the old release. Failure after switching 
 
 Use Administration → Health / Recovery or /ripper doctor to identify pending publication reviews and failed jobs. Bind actual message/thread IDs using the primary recovery commands in the [admin guide](ADMIN.md).
 
-If the helper's status send timed out, stop the helper and inspect the private log channel. Bind the known message with:
+If the helper's status send timed out, stop the helper and inspect the private operations channel. Bind the known message with:
 
 ```bash
 sudo /opt/ripper-zone/current/.venv/bin/python /opt/ripper-zone/current/scripts/rzctl.py bind-recovery MESSAGE_ID
@@ -103,7 +103,7 @@ The repository was tested without a Discord token or access to the production VP
 1. Main and helper services remain active; /health reports ready; /ripper doctor has no permission, ownership or consistency issue.
 2. Verified member opens a private panel. A second member cannot operate the first member's screen.
 3. One spin credits RC. Repeated clicks and a main-service restart return the same daily result.
-4. A test task creates its thread. Member submits a post. Two moderators using ✅ credit its base reward only once. task_snapshot pays zero for that already-paid member.
+4. A test task creates its thread. Member submits a post. Two moderators using the same configured emoji credit its fixed RC once per message. A task-cycle participation snapshot is a separate reward. Check the source-specific public receipt and the member ledger.
 5. Posting cooldown deletes a second premature post; a moderator bypasses it. Closing/expiry locks and archives the intended thread.
 6. Export one actual finalized Rumble and ordinary raffle. Preview recipient counts against their source results. Confirm an eligible losing participant is included. Reimport pays zero.
 7. Create a small test RC raffle. Buy tickets, confirm cost, inspect available/reserved balances. Close with the required unique eligible count. Check saved winners, spent/refunded RC and proof.
@@ -123,3 +123,14 @@ The authenticated recovery endpoint `/events` accepts only source=rumble|raffle 
 Presentation settings and their history are stored in meta_flags. The legacy settings JSON and financial schema remain readable by 1.0.1. A code rollback preserves RC, reservations, source snapshots and extended settings. Old code cannot process new presentation/reaction jobs; their durable records remain available for a later re-upgrade and retry. Rollback verifies an isolated backup before stopping the current services and restores their previous running state on failure.
 
 This release's automated tests do not connect to the production VPS or Discord. Complete the live acceptance checklist after upgrade, especially permissions, real event roster counts, callback rendering, role hierarchy, recovery service and mobile layout.
+
+## 1.2.0 live acceptance
+
+1. Set Public RC activity channel to the community-visible channel and Private operations channel to a separate restricted channel, if recovery controls are wanted. The previous log channel binding is retained as the public feed destination; channel permissions are not changed automatically.
+2. Review migrated reaction values: legacy base markers become fixed 5 RC, legacy quality values are retained. Add more than five emojis and verify editor pagination. Test a text post, an image, an ordinary thread and a forum starter. Only configured moderators should trigger awards.
+3. Test two moderators, a re-add and an amount edit against one message/emoji: exactly one payment. Different emojis are separate rewards. Verify a failed receipt retry does not change the balance.
+4. Open the public gateway. Navigate Home → My Dashboard → History → Dashboard and confirm one private message changes, including attachments. Verify ownership, expiry/reopen and public messages staying public. Check mobile/desktop rendering and color contrast.
+5. Create/edit tasks with 12s, 12m, 12h, 12d and none. Verify readable cooldown messages, no submission DM, and one short in-thread cooldown notice per member/task per 30 seconds.
+6. Run /ripper snapshot amount:10 in a voice or stage chat. Review the human roster, change RC, let a member join/leave, and confirm: only the captured roster is paid. Repeat confirmation: zero additional awards. Stream watching is not verified.
+
+The current code stores new reaction/audit settings in a versioned extension while keeping a five-rule legacy settings row for older code. A code rollback preserves the ledger but restores the older feature limits; re-upgrade to resume the new workflows. Never restore an old ledger to fix a display issue.

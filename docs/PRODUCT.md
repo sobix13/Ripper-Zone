@@ -26,7 +26,7 @@ Every database transaction runs on a short-lived connection in a worker thread, 
 
 Available/reserved/earned account columns are projections of immutable signed ledger deltas. Reconciliation compares projections, outstanding purchase holds and daily claims with their ledger records. A mismatch records a financial pause; it does not alter money records to make them appear consistent. Original rewards are invalidated by explicit reversal entries, not deletion.
 
-Task base identity: guild + task + cycle + member + base. Quality-reaction identity: guild + message + emoji + member. Ordinary event identity: source + guild + event + member + participation. Spin identity: guild + member + UTC date. Purchase confirmation identity is the original submitted request, retained across retries.
+Task base identity: guild + task + cycle + member + base. Server reaction identity: guild + message + emoji + member. Voice snapshot identity: guild + captured interaction + member; roster and amount are durably frozen before payment. Ordinary event identity: source + guild + event + member + participation. Spin identity: guild + member + UTC date. Purchase confirmation identity is the original submitted request, retained across retries.
 
 The job queue separates external role/log effects from financial commits. Jobs lease for 180 seconds, retry up to eight times with bounded exponential delays, then appear in doctor for review. Failed jobs never rerun an RC award. Log lines may duplicate after a network timeout; balances do not.
 
@@ -69,3 +69,11 @@ The shared registry contains ownership and setup leases only. Financial data sta
 Event integration uses an authenticated localhost endpoint in the existing independent helper. It reads finalized source data through fixed, root-configured read-only adapters. The Zone service account receives no access to source databases and no source service is changed. Export/import remains an advanced fallback. Channels and achievement roles are selected from existing server resources. The bot checks their permissions and ownership; it does not redesign the server or change Gate/Crew resources.
 
 There is no offsite backup target configured, no payment integration, no cash redemption and no automatic repair of a corrupt ledger. These are not represented as completed features.
+
+## Release 1.2.0 changes
+
+The member home exposes four primary activities; personal records are grouped under My Dashboard. Contextual member navigation edits one private message. Burgundy, teal and muted gold are native container accents, not custom button backgrounds. English copy and Rumble artwork are reused. Daily-spin probabilities remain available in Spin Details. No automatic submission/cooldown DM is sent.
+
+Server-wide reaction rewards use a fixed RC amount per emoji, independent of task participation. Legacy base markers become fixed 5 RC rules and legacy quality amounts remain unchanged; previously queued reviews keep their old contract. Up to 100 reaction rules are supported. Public earned-RC receipts include their source; private operations is optional and separate. Failed receipt sends are retryable without repeating money operations.
+
+Voice and stage snapshots capture connected humans from the ready gateway state. Bot members are excluded. The saved roster does not change with later joins/departures. Only the capturing authorized moderator confirms or edits the amount; stale previews cannot pay a changed amount. Voice presence does not prove stream watching.

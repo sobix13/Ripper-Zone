@@ -8,144 +8,144 @@ Run all 64 live/operational gates from the baseline audit on the upgraded server
 
 | ID | Area / requirement | Release disposition |
 | --- | --- | --- |
-| R001 | هویت · نام پذیرفته‌شده Ripper Zone | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R002 | هویت · RC مخفف Ripper Credit، جمع Ripper Credits | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R003 | هویت · بات مستقل از Melee و بدون انتقال موجودی MC | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R004 | اقتصاد · یک حساب RC برای تسک، رویداد، پاداش دستی و اسپین | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R005 | پنل عضو · شروع کار از پیام عمومی و دکمه | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R006 | پنل عضو · خانه کاربردی با وضعیت فعالیت‌های قابل انجام | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R007 | پنل عضو · نمایش Available، Reserved و Earned با معنای روشن | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R008 | پنل عضو · تاریخچه قابل مرور | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R009 | پنل عضو · مشارکت‌ها و پاداش‌های خود فرد در تسک | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R010 | پنل عضو · عملکرد هفتگی و ماهانه، معادل بخش مفید Dashboard ملی زون | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R011 | پنل عضو · آرشیو رافل‌ها و جوایز خود فرد | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R012 | پنل عضو · همه بخش‌ها از دکمه و انتخاب‌گر، بدون نیاز روزمره به کامند | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R013 | پنل عضو · مسیر بازگشت، وضعیت بارگذاری و پایان اعتبار صفحه | Private expiration guidance implemented; real-client timeout handling remains in live acceptance. |
-| R014 | لیدربورد · لیدربورد عمومی واقعاً منتشر و متصل شود | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R015 | لیدربورد · دکمه‌های عمومی دوره و My Rank | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R016 | لیدربورد · یک قرارداد رتبه مساوی در همه صفحه‌ها | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R017 | لیدربورد · دسترسی به افراد بعد از رتبه دهم | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R018 | لیدربورد · نمایش رتبه خود فرد حتی خارج از ده نفر اول | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R019 | لیدربورد · هفته تقویمی، مشابه ملی زون | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R020 | لیدربورد · رتبه روزانه و ماهانه | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R021 | لیدربورد · رتبه از درآمد معتبر، نه موجودی قابل خرج | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R022 | لیدربورد · انتشار و Refresh از پنل مدیریت | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R023 | لیدربورد · نمایش دوره فعال، آخرین به‌روزرسانی و وضعیت خالی | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R024 | تسک · ساخت تسک عمومی با ترد اختصاصی | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R025 | تسک · فرم ساده با فیلدهای جداگانه | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R026 | تسک · نمایش کامل متن، مبلغ و مهلت در ترد | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R027 | تسک · مدیریت تسک‌های فعال و گذشته از پنل | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R028 | تسک · آمار ارسال‌کنندگان و پاداش‌گرفته‌ها | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R029 | تسک · ویرایش عنوان و توضیح بعد از ساخت | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R030 | تسک · ویرایش مبلغ پایه با سیاست مشخص | Base reward locks after participation; closed timing locks. Duplicate creates a new policy. |
-| R031 | تسک · ویرایش cooldown و deadline و همگامی پیام | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R032 | تسک · نمایش جزئیات برای عضو از خود پنل | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R033 | تسک · پرداخت پایه یکتا در هر دوره | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R034 | تسک · پاداش کیفیت مستقل از پایه | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R035 | تسک · مدیریت پایان، بستن و آرشیو با تلاش مجدد | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R036 | تسک · شناخت دوره بدون حفظ task_id و cycle_id | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R037 | تسک · ثبت پست در زمان آفلاین با بررسی ماد | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R038 | تسک · Cooldown و معافیت مادها | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R039 | تسک · Reset Cooldown یک عضو از پنل | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R040 | تسک · محافظت کانال اصلی تسک مثل ملی زون | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R041 | تسک · ساخت همزمان بدون دو ترد | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R042 | تسک · بازیابی ترد و پیام بدون ارسال تکراری | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R043 | ری‌اکشن · مشاهده همه ایموجی‌ها و RC در پنل | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R044 | ری‌اکشن · افزودن، ویرایش و حذف rule با فرم | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R045 | ری‌اکشن · تفاوت مبلغ پایه با مبلغ ثابت ایموجی | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R046 | ری‌اکشن · ایموجی یونیکد و سفارشی، حداکثر پنج rule | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R047 | ری‌اکشن · مبلغ صفر کیفیت از Import هم پذیرفته نشود | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R048 | ری‌اکشن · عملیات یکتا با تغییر ماد | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R049 | ری‌اکشن · خطای موقت شبکه پاداش را گم نکند | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R050 | ری‌اکشن · بازیابی ری‌اکشن‌های جامانده | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R051 | ری‌اکشن · تغییر مقدار برای آینده، بدون دستکاری گذشته | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R052 | ری‌اکشن · حذف ری‌اکشن، حذف خودکار پول نباشد | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R053 | ری‌اکشن · سیاست ری‌اکشن ماد روی پست خودش | Another moderator must approve automatic/reviewed task rewards. General manual bonuses remain explicit moderator actions. |
-| R054 | ری‌اکشن · پاداش پیام خارج از ترد تسک و منوی پیام | Message context menu restores general manual awards. Automatic reactions are deliberately limited to managed task threads. |
-| R055 | اسنپ‌شات · اسنپ‌شات تسک بدون فایل | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R056 | اسنپ‌شات · اسنپ‌شات چنل یا ترد و بازه زمانی مثل ملی زون | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R057 | اسنپ‌شات · اسنپ‌شات افراد ری‌اکت‌کرده به پیام | Reaction snapshot implemented with human filtering, paginated enumeration, cap and explicit confirmation. |
-| R058 | اسنپ‌شات · رویداد رامبل و رافل بدون فایل در کار روزمره | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R059 | اسنپ‌شات · رامبل شامل برنده و بازنده‌ها | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R060 | اسنپ‌شات · رافل عادی شامل شرکت‌کنندگان، حتی بازنده | Preserves the original eligible pool including losers. Excluded source entrants are not silently reclassified as eligible. |
-| R061 | اسنپ‌شات · پاداش رافل عادی از خرید تیکت RC جدا باشد | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R062 | اسنپ‌شات · منبع واقعی و اطلاعات معتبر رویداد | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R063 | اسنپ‌شات · پیش‌نمایش مخاطبان و جمع RC | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R064 | اسنپ‌شات · تکرار واردکردن رویداد پول دوباره ندهد | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R065 | اسنپ‌شات · پست ثبت‌شده با تأیید کیفی ماد اشتباه نشود | Presence is explicitly labeled separately from approval; a cycle snapshot is deliberate moderator batch approval, not peer review. |
-| R066 | پاداش دستی · انتخاب فرد با UserSelect | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R067 | پاداش دستی · Preview و تأیید یکتا | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R068 | پاداش دستی · مشاهده حساب هر عضو در پنل مدیریت | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R069 | پاداش دستی · Correction مثبت و منفی با دلیل | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R070 | پاداش دستی · Revoke پاداش نامعتبر و حذف metric مرتبط | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R071 | پاداش دستی · نتیجه بعد از commit با خطای ارسال متناقض نباشد | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R072 | رافل RC · فیچر مستقل با پست عمومی و خرید تیکت | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R073 | رافل RC · فرم قواعد قابل فهم با فیلد جدا | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R074 | رافل RC · ذخیره و ویرایش Draft پیش از انتشار | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R075 | رافل RC · رزرو اتمیک، جلوگیری از دوباره‌خرج‌کردن و سقف تیکت | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R076 | رافل RC · قرارداد قیمت و دسترسی ثابت | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R077 | رافل RC · پیش‌نمایش مبلغ خرید و رسید | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R078 | رافل RC · حداقل افراد، refund و خطای نامعلوم eligibility | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R079 | رافل RC · تعداد جایزه با تعداد افراد واجدشرایط سازگار باشد | Public rules say up to N winners; fewer eligible members never promise a guaranteed N prizes. |
-| R080 | رافل RC · فهرست، بستن، لغو و Refresh از پنل | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R081 | رافل RC · نمایش برندگان جاری بعد از replacement | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R082 | رافل RC · Claim از My Prizes، مستقل از پیدا کردن پست قدیمی | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R083 | رافل RC · تحویل، forfeiture و replacement با دلیل | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R084 | رافل RC · Proof نتیجه بدون قرعه‌کشی دوباره | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R085 | رول · سه رول اختیاری و قابل Skip در Wizard | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R086 | رول · RoleSelect و metricهای جداگانه | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R087 | رول · ذخیره خاموش و فعال‌سازی بعدی | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R088 | رول · تعریف روشن task/event count | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R089 | رول · فقط بالاترین سطح و افزودن قبل از حذف | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R090 | رول · حفاظت منابع Gate، Crew، Raffle و رول‌های دسترسی | Configured access/staff and foreign registered roles protected; dedicated-role guidance added. Unknown manual role purpose is not guessed. |
-| R091 | اسپین · ده خروجی بین 2 و 100 | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R092 | اسپین · شانس 100 RC برابر نیم درصد | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R093 | اسپین · میانگین کل 5 RC و حداقل 2 | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R094 | اسپین · روزی یک بار با بازشدن پنل و کلیک روزانه | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R095 | اسپین · ریست روز UTC و عبور درخواست از نیمه‌شب | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R096 | اسپین · تجربه نمایش اسپین و نتیجه قابل بازگشت | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R097 | اسپین · فعال یا غیرفعال‌کردن از پنل | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R098 | برندینگ · استفاده گزینشی از تصاویر رامبل | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R099 | برندینگ · قابل ویرایش بودن عنوان و پیام خوشامد | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R100 | برندینگ · About و Support قابل تنظیم | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R101 | برندینگ · ویرایش متن‌های اعلان و پیام‌های عمومی مرتبط | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R102 | برندینگ · متن پویا و متغیرهای مجاز بدون اجرای کد | Whitelisted placeholders supported for twenty templates; five core copy fields use literal text. Financial facts remain separate. |
-| R103 | برندینگ · ویرایش پیام و نتیجه در همه مسیرها هماهنگ بمانند | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R104 | راهنما · راهنمای عضو چندصفحه‌ای و متناسب با RC | Contextual member guide and configurable support copy; existing Crew channel link is selectable. |
-| R105 | راهنما · راهنمای مدیر داخل بات | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R106 | ستاپ · نمایش کامل تنظیمات فعلی | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R107 | ستاپ · ویرایش یک چنل بدون تکرار کل Wizard | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R108 | ستاپ · جابجایی چنل، شناسه پیام قدیمی را خراب نکند | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R109 | ستاپ · دسترسی مادها و مدیران اصلی از انتخاب‌گر | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R110 | ستاپ · تاریخچه، Import و Export تنظیمات | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R111 | ستاپ · جلوگیری از بازنویسی فرم قدیمی | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R112 | ستاپ · اتمام Wizard با وضعیت روشن و Publishهای لازم | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R113 | ستاپ · Pause برنامه بدون گم‌کردن رزروهای موجود | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R114 | امنیت · عضو دیگر نتواند پنل خصوصی را کنترل کند | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R115 | امنیت · دسترسی تازه در لحظه عملیات | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R116 | امنیت · عدد صحیح و validation، بدون امتیاز اعشاری MC | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R117 | امنیت · لاگ ماد واقعاً خصوصی باشد | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R118 | حسابداری · تراکنش اتمیک، idempotency و حفظ RC در retry | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R119 | حسابداری · برگشت به پشتیبان قدیمی خودکار انجام نشود | Legacy configuration/financial schema stays readable; old code cannot execute new presentation jobs. Re-upgrade and retry those jobs. |
-| R120 | نصب · کاربر، سرویس، مسیر و پورت مستقل | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R121 | نصب · فرم توکن و شناسه صاحب، خطای قابل اصلاح بدهد | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R122 | نصب · ارتقا با حفظ env و RC | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R123 | نصب · Rollback ناموفق سرویس سالم را خاموش رها نکند | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R124 | نصب · بسته نهایی فایل حساس تو در تو را وارد نکند | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R125 | عملیات · Health قابل فهم در پنل، نه فقط JSON | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R126 | عملیات · Retry jobs و بازیابی binding از دکمه | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R127 | عملیات · Verified Missing محلی واقعاً کار کند | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R128 | عملیات · پشتیبان SQLite معتبر و روزانه | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R129 | عملیات · تربل‌شوت خودکار محدود و مستقل | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R130 | عملیات · Backup خارج VPS و استانداردهای کامل Crew | Offsite backup remains unconfigured; no destination or credentials were supplied. |
-| R131 | کیفیت · تست عددی اسپین و رقابت چندپردازشی | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R132 | کیفیت · تست کل مسیر UI، نه فقط هسته | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R133 | کیفیت · تست user و root در CI | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
-| R134 | کیفیت · پذیرش Discord و VPS واقعی | PENDING LIVE: no production Discord/VPS session was supplied to this implementation environment. |
-| R135 | دامنه · Quiz و سیستم ثبت محتوا و peer review در این نسخه نباشند | Intentionally excluded: quiz, content submission and peer review. Task moderation remains implemented. |
-| R136 | دامنه · رول‌ها بعداً با metric فعال شوند | Exactly three tiers use earned RC, rewarded task cycles and paid events. Purchase/holder/onchain metrics are not implemented. |
-| R137 | دامنه · ثبت تصمیمات و نقشه کامل اجرا پیش از اصلاح جدید | Baseline audit requirement IDs retained here; implementation and test scope recorded separately from live acceptance. |
-| R138 | دامنه · تغییرات محلی ناتمام با نسخه منتشرشده اشتباه نشوند | WIP integrated into 1.1.0; release staging and CI must pass before installation. |
+| R001 | Identity · Approved name: Ripper Zone | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R002 | Identity · RC means Ripper Credit; plural Ripper Credits | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R003 | Identity · Independent of Melee; no MC balance migration | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R004 | Economy · One RC account for tasks, events, manual rewards and spin | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R005 | Member panel · Public entry message and button | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R006 | Member panel · Useful home with available activities | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R007 | Member panel · Clear available, reserved and earned balances | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R008 | Member panel · Browsable history | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R009 | Member panel · Personal task participation and rewards | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R010 | Member panel · Weekly and monthly activity summaries | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R011 | Member panel · Personal raffle archive and prizes | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R012 | Member panel · Buttons and selectors for routine workflows | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R013 | Member panel · Back navigation, loading and session expiry | Back/Home navigation and same-message member updates are implemented. Expiry/reopen guidance is in Help; client timeout rendering remains a live gate. |
+| R014 | Leaderboard · Publish and bind a working public leaderboard | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R015 | Leaderboard · Public period filters and My Rank | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R016 | Leaderboard · Consistent tied ranks across screens | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R017 | Leaderboard · Pagination beyond the top ten | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R018 | Leaderboard · Personal rank outside the top ten | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R019 | Leaderboard · Calendar-based weeks | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R020 | Leaderboard · Daily and monthly rankings | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R021 | Leaderboard · Rank by earned RC rather than spendable balance | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R022 | Leaderboard · Publish and refresh from administration | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R023 | Leaderboard · Active period, update time and empty state | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R024 | Tasks · Public task with a dedicated thread | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R025 | Tasks · Simple form with separate fields | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R026 | Tasks · Full brief, reward and deadline in the thread | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R027 | Tasks · Manage active and past tasks through the panel | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R028 | Tasks · Contributor and reward counts | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R029 | Tasks · Edit title and instructions after creation | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R030 | Tasks · Explicit policy for changing participation rewards | Base reward locks after participation; closed timing locks. Duplicate creates a new policy. |
+| R031 | Tasks · Edit cooldown/deadline and synchronize the brief | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R032 | Tasks · Member task details inside the panel | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R033 | Tasks · One participation reward per member per cycle | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R034 | Tasks · Extra bonuses separate from participation rewards | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R035 | Tasks · End, close and archive with retry | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R036 | Tasks · Choose cycles without memorizing IDs | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R037 | Tasks · Moderator review of posts missed during downtime | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R038 | Tasks · Posting cooldown and moderator bypass | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R039 | Tasks · Reset one member's cooldown from the panel | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R040 | Tasks · Keep submissions inside matching task threads | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R041 | Tasks · Concurrent publication without duplicate threads | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R042 | Tasks · Recover threads and briefs without blind duplicate sends | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R043 | Reactions · View configured emojis and RC values | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R044 | Reactions · Add, edit and remove rules through forms | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R045 | Reactions · Distinguish task participation from fixed emoji rewards | Fixed server-wide emoji rewards replace the old base/quality editor. Task-cycle participation remains separate. |
+| R046 | Reactions · Unicode and custom emojis beyond the five-rule baseline | Expanded to 100 configured Unicode/custom emojis with paginated editing. |
+| R047 | Reactions · Reject zero fixed rewards, including imported settings | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R048 | Reactions · One reward despite different moderators | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R049 | Reactions · Temporary network failures do not lose awards | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R050 | Reactions · Recover missed reactions | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R051 | Reactions · New amounts affect future awards, not past payments | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R052 | Reactions · Removing a reaction does not reverse RC | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R053 | Reactions · Prevent automatic self-rewards | Another moderator must approve automatic/reviewed task rewards. General manual bonuses remain explicit moderator actions. |
+| R054 | Reactions · Rewards on messages outside task threads | Authorized moderator reactions now work across accessible server chats and threads, including forum starters. The Award RC message menu remains available. |
+| R055 | Snapshots · File-free task snapshots | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R056 | Snapshots · Channel/thread snapshots over a time window | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R057 | Snapshots · Snapshot members reacting to a message | Reaction snapshot implemented with human filtering, paginated enumeration, cap and explicit confirmation. |
+| R058 | Snapshots · Routine Rumble/raffle event snapshots without files | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R059 | Snapshots · Rumble includes winners and non-winners | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R060 | Snapshots · Ordinary raffle includes eligible losing participants | Preserves the original eligible pool including losers. Excluded source entrants are not silently reclassified as eligible. |
+| R061 | Snapshots · Ordinary raffle participation separate from RC ticket spending | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R062 | Snapshots · Actual source data and valid event metadata | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R063 | Snapshots · Preview recipients and total RC | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R064 | Snapshots · Reimporting the same finalized event never pays twice | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R065 | Snapshots · Recorded presence is distinct from moderator approval | Presence is explicitly labeled separately from approval; a cycle snapshot is deliberate moderator batch approval, not peer review. |
+| R066 | Manual rewards · Native member selection | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R067 | Manual rewards · Preview and idempotent confirmation | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R068 | Manual rewards · View a member account in administration | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R069 | Manual rewards · Positive/negative corrections with reasons | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R070 | Manual rewards · Revoke invalid rewards and related metrics | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R071 | Manual rewards · Display failures do not contradict committed results | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R072 | RC raffles · Separate feature with public posts and ticket purchases | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R073 | RC raffles · Understandable rules in separate fields | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R074 | RC raffles · Save and edit drafts before publication | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R075 | RC raffles · Atomic reservations, balance checks and ticket caps | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R076 | RC raffles · Frozen price and eligibility contract | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R077 | RC raffles · Purchase cost preview and receipt | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R078 | RC raffles · Minimum entrants, refunds and uncertain eligibility | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R079 | RC raffles · Prize counts reflect eligible participant counts | Public rules say up to N winners; fewer eligible members never promise a guaranteed N prizes. |
+| R080 | RC raffles · List, close, cancel and refresh from the panel | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R081 | RC raffles · Show current winners after replacement | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R082 | RC raffles · Claim through My Prizes without finding an old post | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R083 | RC raffles · Delivery, forfeiture and replacement with reasons | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R084 | RC raffles · Verify a saved result without drawing again | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R085 | Roles · Three optional tiers, skippable in the wizard | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R086 | Roles · Native role selection and separate metrics | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R087 | Roles · Save disabled and activate later | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R088 | Roles · Clear task and event counts | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R089 | Roles · Keep only the highest tier; add before removing | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R090 | Roles · Protect access, staff and other bots' registered resources | Configured access/staff and foreign registered roles protected; dedicated-role guidance added. Unknown manual role purpose is not guessed. |
+| R091 | Spin · Ten outcomes between 2 and 100 RC | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R092 | Spin · 100 RC has a 0.5 percent probability | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R093 | Spin · Overall mean 5 RC, minimum 2 RC | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R094 | Spin · Explicit daily click after opening the panel | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R095 | Spin · UTC reset and requests crossing midnight | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R096 | Spin · Animation and a saved, reopenable result | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R097 | Spin · Enable or pause through administration | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R098 | Branding · Selected Rumble artwork | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R099 | Branding · Editable title and welcome message | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R100 | Branding · Configurable About and Support copy | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R101 | Branding · Editable notification and public-message copy | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R102 | Branding · Safe named placeholders without code execution | Whitelisted placeholders supported for twenty templates; five core copy fields use literal text. Financial facts remain separate. |
+| R103 | Branding · Consistent copy across display paths | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R104 | Guides · Multipage member guide tailored to RC | Contextual member guide and configurable support copy; existing Crew channel link is selectable. |
+| R105 | Guides · In-bot administration guide | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R106 | Setup · Show current configuration | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R107 | Setup · Edit one channel without repeating the wizard | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R108 | Setup · Moving a channel preserves message bindings | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R109 | Setup · Native moderator and primary administrator selection | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R110 | Setup · Configuration history, import and export | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R111 | Setup · Stale forms cannot overwrite newer settings | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R112 | Setup · Finish the wizard with clear publication actions | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R113 | Setup · Pausing new earnings preserves existing reservations | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R114 | Security · Another member cannot operate a private panel | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R115 | Security · Recheck current authority at operation time | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R116 | Security · Integer RC validation without fractional MC | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R117 | Security · Private operations separate from public RC activity | Public RC receipts include a short source. Optional private operations retains restricted technical notices and recovery controls. |
+| R118 | Accounting · Atomic operations, idempotency and retry safety | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R119 | Accounting · Never automatically restore an older ledger | Legacy configuration/financial schema stays readable; old code cannot execute new presentation jobs. Re-upgrade and retry those jobs. |
+| R120 | Installation · Independent user, services, paths and ports | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R121 | Installation · Recoverable token/owner input validation | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R122 | Installation · Upgrade preserves environment and RC | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R123 | Installation · Failed rollback does not leave a healthy service stopped | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R124 | Installation · Exclude nested sensitive files from release bundles | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R125 | Operations · Readable in-panel health, not only JSON | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R126 | Operations · Button-driven retries and binding recovery | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R127 | Operations · Working local verified-missing recovery | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R128 | Operations · Verified daily SQLite backups | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R129 | Operations · Bounded independent automatic troubleshooting | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R130 | Operations · Offsite backup and Crew operational standards | Offsite backup remains unconfigured; no destination or credentials were supplied. |
+| R131 | Quality · Exhaustive spin distribution and multiprocess races | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R132 | Quality · End-to-end UI workflows as well as core logic | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R133 | Quality · Ordinary-user and root CI runs | Implemented in the code/panel workflow; automated local checks where applicable. Production behavior remains pending live acceptance. |
+| R134 | Quality · Real Discord and VPS acceptance | PENDING LIVE: no production Discord/VPS session was supplied to this implementation environment. |
+| R135 | Scope · Exclude quiz, content-submission forms and peer review | Intentionally excluded: quiz, content submission and peer review. Task moderation remains implemented. |
+| R136 | Scope · Enable achievement roles later through metrics | Exactly three tiers use earned RC, rewarded task cycles and rewarded events, including voice snapshots. Purchase/holder/onchain metrics are not implemented. |
+| R137 | Scope · Record decisions and implementation maps | Baseline audit requirement IDs retained here; implementation and test scope recorded separately from live acceptance. |
+| R138 | Scope · Distinguish unfinished local work from published releases | Integrated release 1.2.0 must pass staging and CI before installation. |
 
 ## Technical findings F01–F19
 
@@ -158,7 +158,7 @@ Run all 64 live/operational gates from the baseline audit on the upgraded server
 | F05 | Local verified-missing can persist the explicit system actor. |
 | F06 | Task publication checks the conditional claim before creating a thread. |
 | F07 | Unknown display failures no longer claim that no financial result exists. |
-| F08 | Active quality rules reject zero; base uses amount=0 as a task-reward marker. Reactions have an explicit pause toggle. |
+| F08 | New fixed reaction rules require 1–1000 RC and support up to 100 emojis with pagination. Legacy base markers migrate to 5 RC. Reactions have an explicit pause toggle. |
 | F09 | Existing task quality identities return already recorded; rule changes do not top up old reactions. |
 | F10 | Public raffle wording states an upper winner ceiling. |
 | F11 | Bound-channel edits are refused; explicit movement durably publishes/binds then redirects the original post. |
@@ -170,3 +170,7 @@ Run all 64 live/operational gates from the baseline audit on the upgraded server
 | F17 | Explicit log View Channel allows for unapproved roles/members are refused; actual server permission acceptance remains required. |
 | F18 | Documentation and native tier setup state the exact protected scope and require dedicated roles; no claim of detecting unknown manual role purpose. |
 | F19 | Nested env/key/WAL/SHM runtime artifacts are refused in release folders. |
+
+## 1.2.0 acceptance additions
+
+See OPERATIONS.md for the live gates covering grouped member navigation, attachment replacement, mobile colors/artwork, duration units, no DMs, server-wide moderator reactions, public/private receipt routing, failed-send retries and frozen voice/stage snapshots. These gates remain live acceptance tasks, not simulated test claims.
