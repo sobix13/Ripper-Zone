@@ -40,3 +40,22 @@ The 238-case suite passed locally as an ordinary user and in a UID-0 namespace. 
 Holders of either role 1560351679700799588 or 1560351676718780617 are excluded before leaderboard ranking and pagination. Public publication/movement, all private time periods, personal rank and leaderboard CSV use the same filter. Incomplete member caches are loaded before filtering; a failed load does not publish an unfiltered board. Relevant role changes queue a public refresh. Balances, earning eligibility, role metrics and ledger exports are unchanged.
 
 All 246 tests passed locally, including the eight new period, tie/pagination, public move, offline member, role-change and CSV cases. Ordinary-user and root runs, staging and final CI are recorded in the publication verification. Real Discord/VPS execution remains separate.
+
+## 1.2.2 read-only recovery WAL repair
+
+Python 3.12 with requirements-lock.txt. All 250 tests passed locally, including
+four new regressions covering actual read-only mount access, repeated short
+transactions with WAL growth checks, committed reward identity after a
+checkpoint failure and a concurrent read-only snapshot. The unchanged code
+fails the mount regression with `sqlite3.OperationalError: unable to open
+database file`; the repair passes the same test. The mount test requires Linux
+user/mount namespaces and explicitly skips on hosts that disable them. The
+production systemd sandbox and capabilities are preserved. No production VPS or
+Discord API was accessed during these tests.
+
+Writers retain WAL/SHM with SQLITE_DBCONFIG_NO_CKPT_ON_CLOSE and explicitly run
+PASSIVE checkpoints on close. Retention alone is insufficient: an isolated
+experiment with short connections grew WAL past 20 MB after 5,000 writes.
+The repaired regression performs 200 updates of a 5 KB row and keeps WAL below
+1 MiB without deleting sidecars. This is not a hard disk-size cap: long-running
+readers can delay checkpoints, as with ordinary SQLite WAL operation.
