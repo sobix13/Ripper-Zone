@@ -37,6 +37,23 @@ The main worker retries failed roles/log delivery and result edits. A mismatch p
 
 ## Common commands
 
+Release 1.2.2 preserves the ledger's SQLite WAL/SHM files between transactions so
+the independent recovery process can read the database on its read-only mount.
+Each completed or rolled-back transaction attempts a passive checkpoint before
+closing. Checkpoint errors are logged separately and do not turn a committed
+reward into a failed request. A reader holding a snapshot can delay checkpoint
+progress; the next transaction retries maintenance without waiting for that
+reader. The recovery service's filesystem and capability limits are unchanged.
+
+An idle 1.2.0/1.2.1 database can have no WAL/SHM files because its last connection
+deletes them. In that state the helper's read-only SELECT can raise
+`unable to open database file` while the main bot still works. Do not remove
+SQLite sidecars manually. Upgrade with the managed installer, which makes a
+verified backup, preserves the live ledger and restarts Zone's two services.
+The helper now logs a traceback when its pulse fails. Its saved `last_error` is
+historical and can remain after a successful pulse; use new log timestamps and
+the status message's updated check time to assess the running helper.
+
 ```bash
 sudo systemctl status ripper-zone.service ripper-zone-recovery.service --no-pager
 sudo journalctl -u ripper-zone.service -n 100 --no-pager
