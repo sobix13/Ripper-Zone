@@ -1,6 +1,7 @@
 """Private SQLite ledger. A transaction owns its connection until commit/rollback."""
 import asyncio
 import json
+import logging
 import secrets
 import sqlite3
 import time
@@ -10,6 +11,8 @@ from .copy import receipt_text
 from .config import canonical, clean, digest, ident, integer, settings, LEGACY_KEYS
 from .features import Features
 from .raffles import Raffles
+
+log = logging.getLogger(__name__)
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta(version INTEGER NOT NULL);
@@ -60,8 +63,31 @@ class Database(Features, Raffles):
         self.clock = clock
         self.lock = asyncio.Lock()
 
-    def _run(self, fn):
+    def _connect(self):
         conn = sqlite3.connect(self.path, timeout=15)
+        try:
+            # The independent read-only helper needs WAL/SHM even between calls.
+            conn.setconfig(sqlite3.SQLITE_DBCONFIG_NO_CKPT_ON_CLOSE, True)
+        except BaseException:
+            conn.close()
+            raise
+        return conn
+
+    @staticmethod
+    def _close(conn):
+        try:
+            if not conn.in_transaction:
+                try:
+                    # Keep WAL growth bounded without deleting the helper's files.
+                    conn.execute("PRAGMA wal_checkpoint(PASSIVE)").fetchone()
+                except sqlite3.Error:
+                    # A maintenance failure must not report a committed award as failed.
+                    log.exception("SQLite WAL checkpoint failed")
+        finally:
+            conn.close()
+
+    def _run(self, fn):
+        conn = self._connect()
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA busy_timeout=15000")
         conn.execute("PRAGMA foreign_keys=ON")
@@ -74,7 +100,7 @@ class Database(Features, Raffles):
             conn.rollback()
             raise
         finally:
-            conn.close()
+            self._close(conn)
 
     async def run(self, fn):
         async with self.lock:
@@ -89,7 +115,7 @@ class Database(Features, Raffles):
         path = Path(self.path)
         path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         def initialize():
-            conn = sqlite3.connect(self.path, timeout=15)
+            conn = self._connect()
             try:
                 conn.execute("PRAGMA journal_mode=WAL")
                 exists = conn.execute("SELECT 1 FROM sqlite_master WHERE name='meta'").fetchone()
@@ -102,7 +128,7 @@ class Database(Features, Raffles):
                     conn.execute("INSERT INTO meta VALUES(1)")
                 conn.commit()
             finally:
-                conn.close()
+                self._close(conn)
             path.chmod(0o600)
         await asyncio.to_thread(initialize)
 
