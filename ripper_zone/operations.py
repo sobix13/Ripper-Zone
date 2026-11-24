@@ -190,7 +190,7 @@ class Recovery:
                 self.last_pulse=time.time()
                 try:await self.pulse()
                 except Exception as exc:
-                    log.warning("Recovery pulse: %s",type(exc).__name__)
+                    log.exception("Recovery pulse failed")
                     self.budget.data['last_error']=str(exc)[:300];self.budget.save()
             await asyncio.sleep(20)
 
