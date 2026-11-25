@@ -23,6 +23,11 @@ def test_recovery_reads_idle_database_on_readonly_mount(tmp_path):
     probe = subprocess.run([*namespace, 'true'], capture_output=True, text=True)
     if probe.returncode:
         pytest.skip('This host disables unprivileged mount/user namespaces')
+    # A root-run CI checkout may sit below another user's private home. Mapped
+    # root has no DAC bypass over that unmapped owner, so use an owned copy.
+    checkout = tmp_path / 'checkout'
+    shutil.copytree(ROOT / 'ripper_zone', checkout / 'ripper_zone',
+                    ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
     script = r'''
 import asyncio
 import os
@@ -63,7 +68,7 @@ finally:
 '''
     result = subprocess.run(
         [*namespace, sys.executable, '-c', script, str(tmp_path)],
-        cwd=ROOT, capture_output=True, text=True, timeout=30,
+        cwd=checkout, capture_output=True, text=True, timeout=30,
     )
     assert result.returncode == 0, result.stdout + result.stderr
     assert 'read-only recovery and integrity check: OK' in result.stdout
