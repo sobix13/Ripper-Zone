@@ -67,7 +67,7 @@
   "tests/test_member_refresh.py": "1980d5ef77323ceaf665253d54a3cf39d86b347ba5389df1e1ad94c6ab7c2d04",
   "tests/test_notice_identity.py": "fc636a22b5ff61f0738993706e399760fd710b1b791c3e9005ea03c5309f0221",
   "tests/test_panel_workflows.py": "2e703838061a184293285e9b3c4a46ece8fb15b2d9fd3500afbce4e02507d03f",
-  "tests/test_recovery_wal.py": "bc5f68b758fc4d4da86895b34a09d3670de042ebae72d119164db6d64f7b1aca",
+  "tests/test_recovery_wal.py": "f476b44c45addbccd8b0a72a40dcc64a2363c896350ed2dc4fb5f0542fc362eb",
   "tests/test_rollback_failure.py": "e091549482774ed211443425c7a77fc9a542adf1299b663241824572151ea223",
   "tests/test_server_rewards.py": "fc3540607daf12560100c15e3d3725ca1c38c19d99d87971f31ed2f664cbf00d",
   "tests/test_spin_ledger.py": "aa259b95ef85f83ff5789bea5cd3c3fb160903c6dab1df1fcf541c089a6a45c3",
